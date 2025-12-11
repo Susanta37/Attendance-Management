@@ -68,7 +68,7 @@ class User extends Authenticatable
 
     public function settings(): HasOne
     {
-        return $this->hasOne(UserSettings::class)->withDefault();
+        return $this->hasOne(UserSetting::class)->withDefault();
     }
 
     // Helper to check roles easily
