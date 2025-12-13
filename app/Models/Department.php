@@ -75,4 +75,10 @@ class Department extends Model
 
         return implode(' > ', array_reverse($names));
     }
+
+    public function geofences()
+{
+    return $this->belongsToMany(Geofence::class, 'department_geofence');
+}
+
 }
