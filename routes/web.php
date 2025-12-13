@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Manager\ManagerDashboardController;
 use App\Http\Controllers\SuperAdmin\AdminDashboardController;
+use App\Http\Controllers\SuperAdmin\AdminGeoFencingController;
+use App\Http\Controllers\SuperAdmin\AdminUserManagementController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Session;
@@ -56,6 +58,8 @@ Route::middleware(['role:collector,district_admin'])
              
              // This controller needs to be created
              Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
+             Route::get('/geofences', [AdminGeoFencingController::class, 'index'])->name('geofencing');
+             Route::get('/users', [AdminUserManagementController::class, 'index'])->name('user_management');
              
              // Add Department/Geofence routes here later
     });
