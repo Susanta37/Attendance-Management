@@ -11,21 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('user_setting', function (Blueprint $table) {
+        Schema::create('user_settings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            
+
             // Security Settings
             $table->boolean('face_verification_enabled')->default(false);
             $table->boolean('gps_spoof_check_enabled')->default(true);
             $table->boolean('multiple_attendance_allowed')->default(false);
             $table->boolean('allow_outside_geofence')->default(false);
             $table->boolean('live_tracking_enabled')->default(false);
-            
+
             // Shift Logic
             $table->time('shift_start')->nullable();
             $table->time('shift_end')->nullable();
-            
+
             $table->timestamps();
         });
     }

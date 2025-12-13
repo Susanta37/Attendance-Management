@@ -10,11 +10,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable,SoftDeletes;
+    use  HasApiTokens,HasFactory, Notifiable, TwoFactorAuthenticatable,SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -22,8 +23,8 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-       'name', 'email', 'phone', 'password', 
-        'role_id', 'department_id', 'status'
+       'name', 'email', 'phone', 'password',
+        'role_id', 'department_id', 'status','is_first_login'
     ];
 
     /**
@@ -76,4 +77,10 @@ class User extends Authenticatable
     {
         return $this->role?->slug === $slug;
     }
+
+    public function geofences()
+{
+    return $this->belongsToMany(Geofence::class, 'user_geofence');
+}
+
 }
