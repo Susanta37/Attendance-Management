@@ -21,6 +21,7 @@ export interface NavItem {
     icon?: LucideIcon | null;
     isActive?: boolean;
     slug?: string;
+    items?: NavItem[];
 }
 export interface Role {
     id: number;

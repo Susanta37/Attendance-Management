@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\Manager\ManagerDashboardController;
+use App\Http\Controllers\SuperAdmin\AdminAttendanceController;
 use App\Http\Controllers\SuperAdmin\AdminDashboardController;
 use App\Http\Controllers\SuperAdmin\AdminGeoFencingController;
 use App\Http\Controllers\SuperAdmin\AdminUserManagementController;
+use App\Http\Controllers\SuperAdmin\AdminReportsController;
+use App\Http\Controllers\SuperAdmin\AdminMasterDataController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Session;
@@ -60,6 +63,9 @@ Route::middleware(['role:collector,district_admin'])
              Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
              Route::get('/geofences', [AdminGeoFencingController::class, 'index'])->name('geofencing');
              Route::get('/users', [AdminUserManagementController::class, 'index'])->name('user_management');
+             Route::get('/attendance', [AdminAttendanceController::class, 'index'])->name('attendance');
+             Route::get('/reports', [AdminReportsController::class, 'index'])->name('reports');
+             Route::get('/masterdata', [AdminMasterDataController::class, 'index'])->name('masterdata');
              
              // User Management API Routes
              Route::prefix('users')->name('users.')->group(function () {

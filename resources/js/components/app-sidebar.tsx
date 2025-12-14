@@ -38,16 +38,6 @@ const adminNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'Master Data',
-        href: '#', // Group header or placeholder
-        icon: Building2,
-        // Assuming NavMain supports sub-items, if not, flat list is fine
-        // items: [
-        //     { title: 'Departments', href: '/admin/departments' },
-        //     { title: 'Designations', href: '/admin/designations' },
-        // ]
-    },
-    {
         title: 'User Management',
         href: '/admin/users',
         icon: Users,
@@ -58,6 +48,11 @@ const adminNavItems: NavItem[] = [
         icon: MapPin,
     },
     {
+        title: 'Attendances',
+        href: '/admin/attendance',
+        icon: Clock,
+    },
+    {
         title: 'Reports & Logs',
         href: '/admin/reports',
         icon: FileText,
@@ -66,6 +61,15 @@ const adminNavItems: NavItem[] = [
         title: 'System Settings',
         href: '/admin/settings',
         icon: Settings,
+    },
+    {
+        title: 'Master Data',
+        href: '/admin/masterdata', // Group header or placeholder
+        icon: Building2,
+        items: [
+            { title: 'Departments', href: '/admin/masterdata' },
+            { title: 'Designations', href: '/admin/designations' },
+        ]
     },
 ];
 
