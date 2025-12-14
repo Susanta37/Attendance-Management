@@ -61,6 +61,28 @@ Route::middleware(['role:collector,district_admin'])
              Route::get('/geofences', [AdminGeoFencingController::class, 'index'])->name('geofencing');
              Route::get('/users', [AdminUserManagementController::class, 'index'])->name('user_management');
              
+             // User Management API Routes
+             Route::prefix('users')->name('users.')->group(function () {
+                 Route::post('/', [\App\Http\Controllers\SuperAdmin\AdminUserManagementController::class, 'store'])->name('store');
+                 Route::put('/{user}', [\App\Http\Controllers\SuperAdmin\AdminUserManagementController::class, 'update'])->name('update');
+                 Route::delete('/{user}', [\App\Http\Controllers\SuperAdmin\AdminUserManagementController::class, 'destroy'])->name('destroy');
+                 Route::post('/{user}/restore', [\App\Http\Controllers\SuperAdmin\AdminUserManagementController::class, 'restore'])->name('restore');
+                 
+                 // Document Management
+                 Route::get('/{user}/documents', [\App\Http\Controllers\SuperAdmin\UserDocumentController::class, 'index'])->name('documents.index');
+                 Route::post('/{user}/documents', [\App\Http\Controllers\SuperAdmin\UserDocumentController::class, 'store'])->name('documents.store');
+                 Route::put('/documents/{document}', [\App\Http\Controllers\SuperAdmin\UserDocumentController::class, 'update'])->name('documents.update');
+                 Route::post('/documents/{document}/approve', [\App\Http\Controllers\SuperAdmin\UserDocumentController::class, 'approve'])->name('documents.approve');
+                 Route::post('/documents/{document}/reject', [\App\Http\Controllers\SuperAdmin\UserDocumentController::class, 'reject'])->name('documents.reject');
+                 Route::delete('/documents/{document}', [\App\Http\Controllers\SuperAdmin\UserDocumentController::class, 'destroy'])->name('documents.destroy');
+                 
+                 // Face Enrollment (Admin manages user faces)
+                 Route::post('/{user}/face/enroll', [\App\Http\Controllers\SuperAdmin\FaceEnrollmentController::class, 'enroll'])->name('face.enroll');
+                 Route::post('/{user}/face/re-enroll', [\App\Http\Controllers\SuperAdmin\FaceEnrollmentController::class, 'reEnroll'])->name('face.reenroll');
+                 Route::delete('/{user}/face', [\App\Http\Controllers\SuperAdmin\FaceEnrollmentController::class, 'deleteFace'])->name('face.delete');
+                 Route::get('/{user}/face/status', [\App\Http\Controllers\SuperAdmin\FaceEnrollmentController::class, 'status'])->name('face.status');
+             });
+             
              // Add Department/Geofence routes here later
     });
 Route::middleware(['role:department_manager'])

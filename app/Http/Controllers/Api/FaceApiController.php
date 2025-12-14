@@ -27,7 +27,7 @@ class FaceApiController extends Controller
         }
 
         // 2️⃣ Send image to Python server to generate embedding
-        $pythonResponse = Http::post('http://127.0.0.1:5005/encode', [
+        $pythonResponse = Http::post('http://139.59.42.28/encode', [
             'image' => $request->image,
         ]);
 

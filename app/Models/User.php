@@ -24,7 +24,8 @@ class User extends Authenticatable
      */
     protected $fillable = [
        'name', 'email', 'phone', 'password',
-        'role_id', 'department_id', 'status','is_first_login'
+        'role_id', 'department_id', 'status', 'is_first_login',
+        'address', 'district', 'block', 'gram_panchayat', 'pincode'
     ];
 
     /**
@@ -79,8 +80,18 @@ class User extends Authenticatable
     }
 
     public function geofences()
-{
-    return $this->belongsToMany(Geofence::class, 'user_geofence');
-}
+    {
+        return $this->belongsToMany(Geofence::class, 'user_geofence');
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(UserDocument::class);
+    }
+
+    public function faceEmbedding()
+    {
+        return $this->hasOne(UserFaceEmbedding::class);
+    }
 
 }

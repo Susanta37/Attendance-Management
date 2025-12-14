@@ -1,8 +1,11 @@
 <?php
 
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\AttendanceHistoryController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeAuthController;
 use App\Http\Controllers\Api\FaceApiController;
+use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -51,5 +54,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Live Location API
     Route::post('/employee/live-location', [AttendanceController::class, 'liveLocation'])
         ->name('employee.livelocation');
+
+
+    //User Dashboard
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+    //Attendance history
+    Route::get('/attendance/history',  [AttendanceHistoryController::class, 'index']);
+
+    Route::get('/profile',[ProfileController::class, 'show']);
 
 });
