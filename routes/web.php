@@ -64,6 +64,8 @@ Route::middleware(['role:collector,district_admin'])
              Route::get('/geofences', [AdminGeoFencingController::class, 'index'])->name('geofencing');
              Route::get('/users', [AdminUserManagementController::class, 'index'])->name('user_management');
              Route::get('/attendance', [AdminAttendanceController::class, 'index'])->name('attendance');
+             Route::get('/attendance/{userId}/records', [AdminAttendanceController::class, 'getUserAttendances'])->name('attendance.user_records');
+             Route::get('/attendance/{userId}/live-location', [AdminAttendanceController::class, 'getLiveLocation'])->name('attendance.live_location');
              Route::get('/reports', [AdminReportsController::class, 'index'])->name('reports');
              Route::get('/masterdata', [AdminMasterDataController::class, 'index'])->name('masterdata');
              
