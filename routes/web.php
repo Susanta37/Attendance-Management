@@ -62,6 +62,11 @@ Route::middleware(['role:collector,district_admin'])
              // This controller needs to be created
              Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
              Route::get('/geofences', [AdminGeoFencingController::class, 'index'])->name('geofencing');
+             Route::prefix('geofences')->name('geofences.')->group(function () {
+             Route::post('/', [AdminGeoFencingController::class, 'store'])->name('store');
+             Route::put('/{geofence}', [AdminGeoFencingController::class, 'update'])->name('update');
+             Route::delete('/{geofence}', [AdminGeoFencingController::class, 'destroy'])->name('destroy');
+         });
              Route::get('/users', [AdminUserManagementController::class, 'index'])->name('user_management');
              Route::get('/attendance', [AdminAttendanceController::class, 'index'])->name('attendance');
              Route::get('/attendance/{userId}/records', [AdminAttendanceController::class, 'getUserAttendances'])->name('attendance.user_records');

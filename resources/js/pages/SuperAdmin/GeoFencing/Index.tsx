@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react'; // Import useForm and router
 import AppLayout from '@/layouts/app-layout';
 import { useTranslation } from '@/hooks/use-translation';
 import { 
-    MapContainer, TileLayer, FeatureGroup, Circle, Marker, Popup, useMap 
+    MapContainer, TileLayer, FeatureGroup, Circle, Marker, Popup, useMap, Polygon, Rectangle 
 } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import 'leaflet/dist/leaflet.css';
@@ -30,60 +30,26 @@ import { cn } from "@/lib/utils";
 // --- Types ---
 type GeoType = 'department' | 'employee';
 
-// --- Mock Data ---
+// Interface for Props passed from Laravel
+interface GeofencingProps {
+    geofences: any[];
+    departments: { id: number; name: string }[];
+    employees: { id: number; name: string }[];
+}
+
+// --- Mock Hierarchy (Keep this for dropdown logic if it's static) ---
 const odishaHierarchy: any = {
     'Khurda': {
         coords: [20.1754, 85.5394],
         blocks: [
-            { 
-                name: 'Bhubaneswar', 
-                coords: [20.2961, 85.8245],
-                gps: ['Nayapalli', 'Jaydev Vihar', 'Bapuji Nagar']
-            },
-            { 
-                name: 'Jatni', 
-                coords: [20.1636, 85.7071],
-                gps: ['Jatni GP1', 'Jatni GP2', 'Jatni GP3']
-            },
+            { name: 'Bhubaneswar', coords: [20.2961, 85.8245], gps: ['Nayapalli', 'Jaydev Vihar'] },
+            { name: 'Jatni', coords: [20.1636, 85.7071], gps: ['Jatni GP1'] },
         ]
     },
-    'Cuttack': {
-        coords: [20.4625, 85.8828],
-        blocks: [
-            { name: 'Cuttack Sadar', coords: [20.4600, 85.9000], gps: ['Cuttack GP1', 'Cuttack GP2'] },
-            { name: 'Banki', coords: [20.3700, 85.5300], gps: ['Banki GP1', 'Banki GP2'] },
-        ]
-    },
-    'Ganjam': {
-        coords: [19.3800, 85.0500],
-        blocks: [
-            { name: 'Chatrapur', coords: [19.3500, 85.0200], gps: ['Chatrapur GP1'] },
-            { name: 'Berhampur', coords: [19.3100, 84.7900], gps: ['Berhampur GP1'] }
-        ]
-    }
+    // ... add other districts as needed
 };
 
-const departments = [
-    { id: '1', name: 'Health & Family Welfare' },
-    { id: '2', name: 'School & Mass Education' },
-    { id: '3', name: 'Works Department (PWD)' },
-    { id: '4', name: 'Housing & Urban Development' },
-];
-
-const employees = [
-    { id: '101', name: 'Rajesh Kumar (BDO)' },
-    { id: '102', name: 'Priya Das (JE)' },
-    { id: '103', name: 'Amit Nayak (Surveyor)' },
-    { id: '104', name: 'Suman Singh (Clerk)' },
-];
-
-// --- Mock Initial Saved Zones ---
-const initialSavedZones = [
-    { id: 1, name: "Bhubaneswar BMC Office", type: "department", assign: "Housing & Urban Dev", location: "Khurda > Bhubaneswar", status: "active", shape: "Polygon" },
-    { id: 2, name: "Cuttack Collectorate", type: "department", assign: "Revenue Dept", location: "Cuttack > Sadar", status: "active", shape: "Circle" },
-];
-
-function MapController({ center, zoom }: { center: [number, number] | null, zoom: number }) {
+function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
     const map = useMap();
     useEffect(() => {
         if (center) {
@@ -93,24 +59,27 @@ function MapController({ center, zoom }: { center: [number, number] | null, zoom
     return null;
 }
 
-export default function GeofencingIndex() {
+export default function GeofencingIndex({ geofences, departments, employees }: GeofencingProps) {
     const { t } = useTranslation();
     const [isDark, setIsDark] = useState(false);
 
-    // Form State
-    const [zoneName, setZoneName] = useState('');
-    const [assignType, setAssignType] = useState<GeoType>('department');
-    const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
-    const [selectedDistrict, setSelectedDistrict] = useState('');
-    const [selectedBlock, setSelectedBlock] = useState('');
+    // --- Inertia Form ---
+    const { data, setData, post, processing, reset, errors } = useForm({
+        name: '',
+        assign_type: 'department' as GeoType,
+        assignee_ids: [] as number[],
+        dist: '',
+        block: '',
+        shape_type: '',
+        coordinates: [] as any[],
+        radius: null as number | null,
+    });
+
+    // Local UI State (separate from form data where logical)
     const [selectedGP, setSelectedGP] = useState('');
-    
-    // Map & Drawing State
     const [mapView, setMapView] = useState<{ center: [number, number], zoom: number }>({ center: [20.2961, 85.8245], zoom: 9 });
     const [drawnShapeType, setDrawnShapeType] = useState<string | null>(null);
-    const [savedZones, setSavedZones] = useState<any[]>(initialSavedZones);
     
-    // We need a ref to clear the drawn layer after saving
     const featureGroupRef = useRef<any>(null);
 
     // Theme Detection
@@ -122,58 +91,80 @@ export default function GeofencingIndex() {
         return () => observer.disconnect();
     }, []);
 
-    // Handle Location Change
+    // Handle Location Change (Updates Map & Form Data)
     useEffect(() => {
-        if (selectedBlock) {
-            const blockData = odishaHierarchy[selectedDistrict]?.blocks.find((b: any) => b.name === selectedBlock);
+        if (data.block) {
+            const blockData = odishaHierarchy[data.dist]?.blocks.find((b: any) => b.name === data.block);
             if (blockData) setMapView({ center: blockData.coords, zoom: 13 });
-        } else if (selectedDistrict) {
-            const distData = odishaHierarchy[selectedDistrict];
+        } else if (data.dist) {
+            const distData = odishaHierarchy[data.dist];
             if (distData) setMapView({ center: distData.coords, zoom: 10 });
         }
-    }, [selectedDistrict, selectedBlock]);
+    }, [data.dist, data.block]);
 
     // Handle Drawing Creation
     const handleCreated = (e: any) => {
-        setDrawnShapeType(e.layerType); // Store 'polygon', 'circle', etc.
+        const layer = e.layer;
+        const type = e.layerType;
+        
+        setDrawnShapeType(type);
+        setData('shape_type', type);
+
+        // Extract Coordinates based on shape
+        if (type === 'circle') {
+            const center = layer.getLatLng();
+            const radius = layer.getRadius();
+            setData(prev => ({
+                ...prev,
+                coordinates: [{ lat: center.lat, lng: center.lng }],
+                radius: radius
+            }));
+        } else if (type === 'polygon' || type === 'rectangle') {
+            // Polygon/Rectangle: Array of LatLng objects
+            // Rectangle in Leaflet Draw returns latlngs like a polygon
+            const latlngs = layer.getLatLngs()[0].map((ll: any) => ({ lat: ll.lat, lng: ll.lng }));
+            setData(prev => ({
+                ...prev,
+                coordinates: latlngs,
+                radius: null
+            }));
+        }
+
+        // Only allow one shape at a time for simplicity (clear others)
+        /* Note: To enforce single shape, you might need custom logic to remove 
+           previous layers from featureGroupRef. The standard library allows multiple.
+           Here we just capture the *last* drawn shape.
+        */
     };
 
     // --- SAVE LOGIC ---
     const handleSave = () => {
-        if (!zoneName) {
-            alert("Please enter a Zone Name.");
-            return;
-        }
-        if (!drawnShapeType) {
-            alert("Please draw a geofence on the map.");
+        if (!data.name || !drawnShapeType || data.assignee_ids.length === 0) {
+            alert("Please fill all fields and draw a zone.");
             return;
         }
 
-        const assigneeNames = selectedAssignees.map(id => {
-            const list = assignType === 'department' ? departments : employees;
-            return list.find(item => item.id === id)?.name;
-        }).join(', ');
+        post(route('admin.geofencing.store'), {
+            onSuccess: () => {
+                reset(); // Clear form
+                setDrawnShapeType(null);
+                setSelectedGP('');
+                if (featureGroupRef.current) {
+                    featureGroupRef.current.clearLayers(); // Clear map
+                }
+                alert("Geofence Saved Successfully!");
+            },
+            onError: (err) => {
+                console.error(err);
+                alert("Failed to save. Check inputs.");
+            }
+        });
+    };
 
-        const newZone = {
-            id: Date.now(),
-            name: zoneName,
-            type: assignType,
-            assign: assigneeNames || "Unassigned",
-            location: selectedBlock ? `${selectedDistrict} > ${selectedBlock}` : selectedDistrict || "Odisha",
-            status: "active",
-            shape: drawnShapeType.charAt(0).toUpperCase() + drawnShapeType.slice(1) // "circle" -> "Circle"
-        };
-
-        setSavedZones([newZone, ...savedZones]);
-        
-        // Reset Form
-        setZoneName('');
-        setSelectedAssignees([]);
-        setDrawnShapeType(null);
-        
-        // Clear Map Drawings
-        if (featureGroupRef.current) {
-            featureGroupRef.current.clearLayers();
+    // Handle Delete
+    const handleDelete = (id: number) => {
+        if(confirm('Are you sure you want to delete this zone?')) {
+            router.delete(route('admin.geofencing.destroy', id));
         }
     };
 
@@ -185,10 +176,10 @@ export default function GeofencingIndex() {
                 
                 {/* --- KPI Cards --- */}
                 <div className="grid gap-4 md:grid-cols-4">
-                    <KpiCard title="Total Zones" value="142" icon={<MapIcon className="text-blue-600" />} trend="+12%" bg="bg-blue-50 dark:bg-blue-900/20" />
-                    <KpiCard title="Active Zones" value="128" icon={<CheckCircle2 className="text-green-600" />} trend="92% Coverage" bg="bg-green-50 dark:bg-green-900/20" />
-                    <KpiCard title="Inactive" value="14" icon={<XCircle className="text-red-600" />} trend="Needs Review" bg="bg-red-50 dark:bg-red-900/20" />
-                    <KpiCard title="Assigned Staff" value="2,405" icon={<Users className="text-orange-600" />} trend="Live Tracking" bg="bg-orange-50 dark:bg-orange-900/20" />
+                    <KpiCard title="Total Zones" value={geofences.length} icon={<MapIcon className="text-blue-600" />} trend="System Wide" bg="bg-blue-50 dark:bg-blue-900/20" />
+                    <KpiCard title="Active Zones" value={geofences.filter(g => g.status === 'active').length} icon={<CheckCircle2 className="text-green-600" />} trend="Operational" bg="bg-green-50 dark:bg-green-900/20" />
+                    <KpiCard title="Assigned Depts" value={geofences.filter(g => g.type === 'department').length} icon={<Building2 className="text-purple-600" />} trend="Coverage" bg="bg-purple-50 dark:bg-purple-900/20" />
+                    <KpiCard title="Assigned Staff" value={geofences.filter(g => g.type === 'employee').length} icon={<Users className="text-orange-600" />} trend="Personalized" bg="bg-orange-50 dark:bg-orange-900/20" />
                 </div>
 
                 {/* --- Main Config Area --- */}
@@ -209,10 +200,11 @@ export default function GeofencingIndex() {
                                 <Label>Zone Name</Label>
                                 <Input 
                                     placeholder="e.g. Khurda Block Office A" 
-                                    value={zoneName}
-                                    onChange={(e) => setZoneName(e.target.value)}
+                                    value={data.name}
+                                    onChange={(e) => setData('name', e.target.value)}
                                     className="border-gray-200 dark:border-zinc-700 focus-visible:ring-orange-500" 
                                 />
+                                {errors.name && <p className="text-red-500 text-xs">{errors.name}</p>}
                             </div>
 
                             {/* Location Controllers */}
@@ -224,7 +216,7 @@ export default function GeofencingIndex() {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                         <Label className="text-xs">District</Label>
-                                        <Select onValueChange={(val) => { setSelectedDistrict(val); setSelectedBlock(''); setSelectedGP(''); }}>
+                                        <Select onValueChange={(val) => { setData('dist', val); setData('block', ''); setSelectedGP(''); }}>
                                             <SelectTrigger className="h-8 bg-white dark:bg-zinc-900"><SelectValue placeholder="Select" /></SelectTrigger>
                                             <SelectContent>
                                                 {Object.keys(odishaHierarchy).map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
@@ -233,10 +225,10 @@ export default function GeofencingIndex() {
                                     </div>
                                     <div className="space-y-1">
                                         <Label className="text-xs">Block</Label>
-                                        <Select onValueChange={setSelectedBlock} disabled={!selectedDistrict}>
+                                        <Select onValueChange={(val) => setData('block', val)} disabled={!data.dist}>
                                             <SelectTrigger className="h-8 bg-white dark:bg-zinc-900"><SelectValue placeholder="Select" /></SelectTrigger>
                                             <SelectContent>
-                                                {selectedDistrict && odishaHierarchy[selectedDistrict]?.blocks.map((b: any) => (
+                                                {data.dist && odishaHierarchy[data.dist]?.blocks.map((b: any) => (
                                                     <SelectItem key={b.name} value={b.name}>{b.name}</SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -246,11 +238,11 @@ export default function GeofencingIndex() {
 
                                 <div className="space-y-1">
                                     <Label className="text-xs">Gram Panchayat</Label>
-                                    <Select onValueChange={setSelectedGP} disabled={!selectedBlock}>
+                                    <Select onValueChange={setSelectedGP} disabled={!data.block}>
                                         <SelectTrigger className="h-8 bg-white dark:bg-zinc-900"><SelectValue placeholder="Select GP" /></SelectTrigger>
                                         <SelectContent>
-                                            {selectedDistrict && selectedBlock && 
-                                                odishaHierarchy[selectedDistrict]?.blocks.find((b: any) => b.name === selectedBlock)?.gps.map((gp: string) => (
+                                            {data.dist && data.block && 
+                                                odishaHierarchy[data.dist]?.blocks.find((b: any) => b.name === data.block)?.gps.map((gp: string) => (
                                                     <SelectItem key={gp} value={gp}>{gp}</SelectItem>
                                                 ))
                                             }
@@ -265,18 +257,18 @@ export default function GeofencingIndex() {
                                 <div className="flex gap-2">
                                     <Button 
                                         type="button" 
-                                        variant={assignType === 'department' ? 'default' : 'outline'} 
-                                        onClick={() => { setAssignType('department'); setSelectedAssignees([]); }}
-                                        className={`flex-1 ${assignType === 'department' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}`}
+                                        variant={data.assign_type === 'department' ? 'default' : 'outline'} 
+                                        onClick={() => { setData('assign_type', 'department'); setData('assignee_ids', []); }}
+                                        className={`flex-1 ${data.assign_type === 'department' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}`}
                                         size="sm"
                                     >
                                         <Building2 size={14} className="mr-2"/> Departments
                                     </Button>
                                     <Button 
                                         type="button" 
-                                        variant={assignType === 'employee' ? 'default' : 'outline'} 
-                                        onClick={() => { setAssignType('employee'); setSelectedAssignees([]); }}
-                                        className={`flex-1 ${assignType === 'employee' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}`}
+                                        variant={data.assign_type === 'employee' ? 'default' : 'outline'} 
+                                        onClick={() => { setData('assign_type', 'employee'); setData('assignee_ids', []); }}
+                                        className={`flex-1 ${data.assign_type === 'employee' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}`}
                                         size="sm"
                                     >
                                         <Users size={14} className="mr-2"/> Employees
@@ -284,15 +276,16 @@ export default function GeofencingIndex() {
                                 </div>
 
                                 <MultiSelect 
-                                    options={assignType === 'department' ? departments : employees}
-                                    selected={selectedAssignees}
-                                    onChange={setSelectedAssignees}
-                                    placeholder={assignType === 'department' ? "Search Depts..." : "Search Staff..."}
+                                    options={data.assign_type === 'department' ? departments : employees}
+                                    selected={data.assignee_ids}
+                                    onChange={(ids: number[]) => setData('assignee_ids', ids)}
+                                    placeholder={data.assign_type === 'department' ? "Search Depts..." : "Search Staff..."}
                                 />
+                                {errors.assignee_ids && <p className="text-red-500 text-xs">{errors.assignee_ids}</p>}
                             </div>
 
-                            <Button className="w-full bg-zinc-900 dark:bg-white dark:text-black hover:bg-zinc-800 mt-4" onClick={handleSave}>
-                                <Save className="mr-2 h-4 w-4" /> Save Configuration
+                            <Button className="w-full bg-zinc-900 dark:bg-white dark:text-black hover:bg-zinc-800 mt-4" onClick={handleSave} disabled={processing}>
+                                <Save className="mr-2 h-4 w-4" /> {processing ? 'Saving...' : 'Save Configuration'}
                             </Button>
                         </CardContent>
                     </Card>
@@ -302,7 +295,7 @@ export default function GeofencingIndex() {
                         <div className="p-3 bg-gray-50 dark:bg-zinc-900 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
                             <div className="flex gap-2 items-center">
                                 <Badge variant="outline" className="bg-white dark:bg-zinc-800">
-                                    {selectedDistrict ? `${selectedDistrict} ${selectedBlock ? '> ' + selectedBlock : ''} ${selectedGP ? '> ' + selectedGP : ''}` : "Odisha View"}
+                                    {data.dist ? `${data.dist} ${data.block ? '> ' + data.block : ''} ${selectedGP ? '> ' + selectedGP : ''}` : "Odisha View"}
                                 </Badge>
                             </div>
                             <div className="flex gap-2">
@@ -327,6 +320,29 @@ export default function GeofencingIndex() {
                                     } 
                                 />
                                 <MapController center={mapView.center} zoom={mapView.zoom} />
+
+                                {/* Render Existing Geofences (Visual Context) */}
+                                {geofences.map(geo => (
+                                    <div key={geo.id}>
+                                        {geo.shape === 'Circle' && geo.coordinates && (
+                                            <Circle 
+                                                center={[geo.coordinates[0].lat, geo.coordinates[0].lng]}
+                                                radius={geo.radius}
+                                                pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.1 }}
+                                            >
+                                                <Popup>{geo.name}</Popup>
+                                            </Circle>
+                                        )}
+                                        {(geo.shape === 'Polygon' || geo.shape === 'Rectangle') && geo.coordinates && (
+                                            <Polygon 
+                                                positions={geo.coordinates.map((c: any) => [c.lat, c.lng])}
+                                                pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.1 }}
+                                            >
+                                                <Popup>{geo.name}</Popup>
+                                            </Polygon>
+                                        )}
+                                    </div>
+                                ))}
 
                                 <FeatureGroup ref={featureGroupRef}>
                                     <EditControl
@@ -369,12 +385,12 @@ export default function GeofencingIndex() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                                {savedZones.length === 0 ? (
+                                {geofences.length === 0 ? (
                                     <tr>
                                         <td colSpan={7} className="px-6 py-8 text-center text-gray-400">No zones configured yet.</td>
                                     </tr>
                                 ) : (
-                                    savedZones.map((zone: any) => (
+                                    geofences.map((zone: any) => (
                                         <tr key={zone.id} className="hover:bg-gray-50/50 dark:hover:bg-zinc-800/50 transition">
                                             <td className="px-6 py-4 font-medium text-gray-900 dark:text-white flex items-center gap-2">
                                                 <MapPin size={16} className="text-orange-500" /> {zone.name}
@@ -392,7 +408,14 @@ export default function GeofencingIndex() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50"><Trash2 size={14} /></Button>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-8 w-8 text-red-600 hover:bg-red-50"
+                                                        onClick={() => handleDelete(zone.id)}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </Button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -408,11 +431,11 @@ export default function GeofencingIndex() {
     );
 }
 
-// --- Multi-Select & KPI Helper Components (Same as before) ---
-function MultiSelect({ options, selected, onChange, placeholder }: any) {
+// --- Multi-Select Component (Unchanged from your snippet, just ensuring prop types) ---
+function MultiSelect({ options, selected, onChange, placeholder }: { options: any[], selected: number[], onChange: (ids: number[]) => void, placeholder: string }) {
     const [open, setOpen] = useState(false);
-    const handleSelect = (id: string) => {
-        if (selected.includes(id)) onChange(selected.filter((item: string) => item !== id));
+    const handleSelect = (id: number) => {
+        if (selected.includes(id)) onChange(selected.filter((item) => item !== id));
         else onChange([...selected, id]);
     };
     return (
@@ -445,7 +468,7 @@ function MultiSelect({ options, selected, onChange, placeholder }: any) {
             </Popover>
             {selected.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2 p-2 bg-gray-50 dark:bg-zinc-800/50 rounded-md border border-gray-100 dark:border-zinc-700 min-h-[3rem]">
-                    {selected.map((id: string) => {
+                    {selected.map((id) => {
                         const item = options.find((o: any) => o.id === id);
                         return (
                             <Badge key={id} variant="secondary" className="bg-white dark:bg-zinc-700 border-gray-200 dark:border-zinc-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100">
@@ -460,6 +483,7 @@ function MultiSelect({ options, selected, onChange, placeholder }: any) {
     );
 }
 
+// --- KPI Card (Unchanged) ---
 function KpiCard({ title, value, icon, trend, bg }: any) {
     return (
         <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-shadow">
