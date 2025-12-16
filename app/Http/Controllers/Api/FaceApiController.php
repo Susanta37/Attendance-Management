@@ -43,7 +43,7 @@ class FaceApiController extends Controller
         Log::info('Face Enrollment: Sending image to Python server');
 
         try {
-            $pythonResponse = Http::timeout(15)->post('http://139.59.42.28/encode', [
+            $pythonResponse = Http::timeout(15)->post('http://kendrapada.nexprodigitalschool.com/encode', [
                 'image' => $request->image,
             ]);
         } catch (\Exception $e) {
