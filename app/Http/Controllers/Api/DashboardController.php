@@ -17,7 +17,7 @@ class DashboardController extends Controller
         $todayAttendance = Attendance::where('user_id', $user->id)
             ->where('date', $today)
             ->whereNotNull('check_in_time')
-            ->first();
+            ->get();
 
         $attendanceStatus = $todayAttendance ? 'present' : 'absent';
 
