@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Geofence;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 
 class GeofenceService
 {
@@ -42,31 +43,46 @@ class GeofenceService
             $inside = false;
             $distance = null; // Only circles use distance
 
-            switch ($fence->shape_type) {
+           switch ($fence->shape_type) {
 
-                case 'circle':
-                    $coords = $fence->coordinates; // {lat, lng}
-                    $distance = self::haversine($lat, $lng, $coords['lat'], $coords['lng']);
-                    $inside = $distance <= $fence->radius;
+    case 'circle':
+        if (!isset($fence->coordinates[0]['lat'], $fence->coordinates[0]['lng'])) {
+            Log::error('INVALID CIRCLE GEOFENCE COORDINATES', [
+                'fence_id' => $fence->id,
+                'coordinates' => $fence->coordinates
+            ]);
+            break;
+        }
 
-                    if ($distance < $closestDistance) {
-                        $closestDistance = $distance;
-                        $closestFence = $fence;
-                    }
-                    break;
+        $coords = $fence->coordinates[0];
 
-                case 'polygon':
-                    $inside = self::pointInPolygon(['lat' => $lat, 'lng' => $lng], $fence->coordinates);
-                    break;
+        $distance = self::haversine(
+            $lat,
+            $lng,
+            $coords['lat'],
+            $coords['lng']
+        );
 
-                case 'rect':
-                    $inside = self::pointInRectangle($lat, $lng, $fence->coordinates);
-                    break;
+        $inside = $distance <= $fence->radius;
 
-                default:
-                    // Unknown geofence type
-                    continue 2;
-            }
+        if ($distance < $closestDistance) {
+            $closestDistance = $distance;
+            $closestFence = $fence;
+        }
+        break;
+
+    case 'polygon':
+        $inside = self::pointInPolygon(
+            ['lat' => $lat, 'lng' => $lng],
+            $fence->coordinates
+        );
+        break;
+
+    case 'rect':
+        $inside = self::pointInRectangle($lat, $lng, $fence->coordinates);
+        break;
+}
+
 
             if ($inside) {
                 $insideAny = true;
