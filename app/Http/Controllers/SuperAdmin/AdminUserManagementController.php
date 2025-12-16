@@ -4,9 +4,11 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\Block;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Department;
+use App\Models\Gp;
 use App\Models\UserDocument;
 use App\Models\UserSetting;
 use Carbon\Carbon;
@@ -27,6 +29,10 @@ class AdminUserManagementController extends Controller
         $totalUsers = User::count();
         $activeToday = Attendance::whereDate('check_in_time', Carbon::today())->distinct('user_id')->count();
         $pendingApproval = UserDocument::where('verification_status', 'pending')->count();
+        $districts = \App\Models\District::where('is_active', 1)
+        ->select('pk_district_id as id', 'district_name as name')
+        ->orderBy('district_name')
+        ->get();
         
         // This is a placeholder as 'GPS Violations' data structure is missing, 
         // but assumes a settings table field or a violation log exists.
@@ -124,8 +130,25 @@ class AdminUserManagementController extends Controller
             'roles' => $roles,
             'departments' => $departments,
             'userSettingsSchema' => $userSettingsSchema,
-            'dynamicStats' => $dynamicStats, // Pass dynamic stats to Inertia
+            'dynamicStats' => $dynamicStats, 
+            'districts' => $districts,
         ]);
+    }
+    public function getBlocks($districtId)
+    {
+        return Block::where('fk_district_id', $districtId)
+            ->where('is_active', 1)
+            ->select('pk_block_id as id', 'block_name as name')
+            ->orderBy('block_name')
+            ->get();
+    }
+    public function getGps($blockId)
+    {
+        return Gp::where('fk_block_id', $blockId)
+            ->where('is_active', 'Y') // Note: Your schema showed 'Y' for active in GP table
+            ->select('pk_gp_id as id', 'gp_name as name')
+            ->orderBy('gp_name')
+            ->get();
     }
 
     /**

@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
+import { useTranslation } from '@/hooks/use-translation'; // Import translation hook
 import { 
     Users, MapPin, AlertTriangle, Clock, CheckCircle2, 
     XCircle, Activity, Search, Filter, ArrowUpRight, 
-    MoreHorizontal, ShieldAlert, FileText, LocateFixed 
+    MoreHorizontal, ShieldAlert, FileText 
 } from 'lucide-react';
-import { MapContainer, TileLayer, Circle, Marker, Popup, Polygon, Rectangle } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, Marker, Popup, Polygon } from 'react-leaflet';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// Fix Leaflet Default Icon issue in Webpack/Vite
+// Fix Leaflet Default Icon issue
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -37,7 +38,6 @@ interface DashboardProps {
     recentLogs: Array<{
         id: number;
         user_name: string;
-        avatar: string | null;
         department: string;
         status: string;
         time: string;
@@ -47,13 +47,14 @@ interface DashboardProps {
     geofences: Array<{
         id: number;
         name: string;
-        coordinates: any; // LatLng array or bounds
+        coordinates: any;
         radius: number | null;
         shape_type: string;
     }>;
 }
 
 export default function AdminDashboard({ stats, chartData, recentLogs, geofences }: DashboardProps) {
+    const { t } = useTranslation(); // Initialize translation hook
     const [isDark, setIsDark] = useState(false);
 
     useEffect(() => {
@@ -68,27 +69,26 @@ export default function AdminDashboard({ stats, chartData, recentLogs, geofences
         ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" 
         : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
-    // Default center (e.g., Odisha)
     const mapCenter: [number, number] = [20.2961, 85.8245];
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }]}>
-            <Head title="Command Center" />
+        <AppLayout breadcrumbs={[{ title: t('dashboard'), href: '/dashboard' }]}>
+            <Head title={t('dashboard')} />
 
             <div className="flex flex-col gap-6 p-4 md:p-8 bg-gray-50/50 dark:bg-zinc-950 min-h-screen">
                 
                 {/* --- Header Section --- */}
                 {/* <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Overview</h1>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Real-time attendance, geofence status, and system health.</p>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('dashboard_overview')}</h1>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard_subtitle')}</p>
                     </div>
                     <div className="flex gap-3">
                         <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 dark:bg-zinc-900 dark:text-gray-300 dark:border-zinc-800 dark:hover:bg-zinc-800 transition-colors">
-                            <Filter size={16} /> Filter
+                            <Filter size={16} /> {t('filter')}
                         </button>
                         <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 transition-colors">
-                            <ArrowUpRight size={16} /> Export Report
+                            <ArrowUpRight size={16} /> {t('export_report')}
                         </button>
                     </div>
                 </div> */}
@@ -96,38 +96,38 @@ export default function AdminDashboard({ stats, chartData, recentLogs, geofences
                 {/* --- 1. KPI Grid --- */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <KpiCard 
-                        title="Total Users" 
+                        title={t('total_staff')} 
                         value={stats.total_employees} 
                         icon={Users} 
                         color="text-blue-600" 
                         bg="bg-blue-100/50 dark:bg-blue-900/20" 
                     />
                     <KpiCard 
-                        title="Present Now" 
+                        title={t('present_now')} 
                         value={stats.present_today} 
-                        subValue={`${stats.total_employees > 0 ? Math.round((stats.present_today / stats.total_employees) * 100) : 0}% Active`}
+                        subValue={`${stats.total_employees > 0 ? Math.round((stats.present_today / stats.total_employees) * 100) : 0}% ${t('active')}`}
                         icon={CheckCircle2} 
                         color="text-green-600" 
                         bg="bg-green-100/50 dark:bg-green-900/20" 
                     />
                     <KpiCard 
-                        title="Late Arrivals" 
+                        title={t('late_arrivals')} 
                         value={stats.late_arrivals} 
                         icon={Clock} 
                         color="text-orange-600" 
                         bg="bg-orange-100/50 dark:bg-orange-900/20" 
                     />
                     <KpiCard 
-                        title="Geofence Alerts" 
+                        title={t('geofence_alerts')} 
                         value={stats.geofence_violations} 
-                        subValue="Outside Zone"
+                        subValue={t('outside_zone')}
                         icon={ShieldAlert} 
                         color="text-red-600" 
                         bg="bg-red-100/50 dark:bg-red-900/20" 
                         animate={stats.geofence_violations > 0}
                     />
                     <KpiCard 
-                        title="Pending Docs" 
+                        title={t('pending_docs')} 
                         value={stats.pending_docs} 
                         icon={FileText} 
                         color="text-purple-600" 
@@ -142,8 +142,8 @@ export default function AdminDashboard({ stats, chartData, recentLogs, geofences
                     <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm">
                         <div className="flex justify-between items-center mb-6">
                             <div>
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Analytics</h3>
-                                <p className="text-sm text-gray-500">Weekly workforce distribution</p>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('attendance_analytics')}</h3>
+                                <p className="text-sm text-gray-500">{t('weekly_trend')}</p>
                             </div>
                         </div>
                         <div className="h-[320px] w-full">
@@ -172,7 +172,7 @@ export default function AdminDashboard({ stats, chartData, recentLogs, geofences
                     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col">
                         <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
                             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                <MapPin size={18} className="text-orange-600" /> Active Zones
+                                <MapPin size={18} className="text-orange-600" /> {t('active_zones')}
                             </h3>
                             <span className="relative flex h-2.5 w-2.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -183,16 +183,14 @@ export default function AdminDashboard({ stats, chartData, recentLogs, geofences
                             <MapContainer 
                                 key={isDark ? 'dark-map' : 'light-map'} 
                                 center={mapCenter} 
-                                zoom={11} 
+                                zoom={7} 
                                 style={{ height: "100%", width: "100%" }} 
                                 zoomControl={false}
                             >
                                 <TileLayer url={tileLayerUrl} />
                                 
                                 {geofences.map((geo) => {
-                                    // Parse coordinates if they are strings (Laravel sometimes sends JSON as string)
                                     const coords = typeof geo.coordinates === 'string' ? JSON.parse(geo.coordinates) : geo.coordinates;
-                                    
                                     return (
                                         <div key={geo.id}>
                                             {geo.shape_type === 'circle' && coords && coords[0] && (
@@ -224,22 +222,22 @@ export default function AdminDashboard({ stats, chartData, recentLogs, geofences
                 <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm overflow-hidden">
                     <div className="p-5 border-b border-gray-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Activity size={18} className="text-blue-600" /> Recent Activity Feed
+                            <Activity size={18} className="text-blue-600" /> {t('recent_activity')}
                         </h3>
                         <div className="flex gap-2">
-                            <Link href="/admin/attendance" className="text-sm text-orange-600 hover:text-orange-700 font-medium">View All &rarr;</Link>
+                            <Link href="/admin/attendance" className="text-sm text-orange-600 hover:text-orange-700 font-medium">{t('view_all')} &rarr;</Link>
                         </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-zinc-800/50">
                                 <tr>
-                                    <th className="px-6 py-3">User</th>
-                                    <th className="px-6 py-3">Department</th>
-                                    <th className="px-6 py-3">Time</th>
-                                    <th className="px-6 py-3">Status</th>
-                                    <th className="px-6 py-3">Location Check</th>
-                                    <th className="px-6 py-3 text-right">Details</th>
+                                    <th className="px-6 py-3">{t('user')}</th>
+                                    <th className="px-6 py-3">{t('department')}</th>
+                                    <th className="px-6 py-3">{t('time')}</th>
+                                    <th className="px-6 py-3">{t('status')}</th>
+                                    <th className="px-6 py-3">{t('location')}</th>
+                                    <th className="px-6 py-3 text-right">{t('details')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -264,11 +262,8 @@ export default function AdminDashboard({ stats, chartData, recentLogs, geofences
                                                     : 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/30'
                                                 }`}>
                                                     {!log.is_inside_fence ? <XCircle size={10}/> : <CheckCircle2 size={10}/>}
-                                                    {log.is_inside_fence ? 'Inside Zone' : 'Outside'}
+                                                    {log.is_inside_fence ? t('inside_zone') : t('outside')}
                                                 </span>
-                                                {!log.is_inside_fence && (
-                                                    <span className="text-xs text-gray-400">({log.distance}m away)</span>
-                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right">
@@ -280,7 +275,7 @@ export default function AdminDashboard({ stats, chartData, recentLogs, geofences
                                 ))}
                                 {recentLogs.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No activity recorded today.</td>
+                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">{t('no_activity')}</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -315,6 +310,8 @@ function KpiCard({ title, value, subValue, icon: Icon, color, bg, animate = fals
 
 // --- Component: Status Badge ---
 function StatusBadge({ status }: { status: string }) {
+    const { t } = useTranslation(); // Translation hook for status badges
+
     const styles: any = {
         Present: "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30",
         Late: "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-900/30",
@@ -322,16 +319,16 @@ function StatusBadge({ status }: { status: string }) {
         Anomaly: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-900/30",
     };
     
-    // Fallback style
-    const defaultStyle = "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700";
-    
-    // Match keys loosely
+    // Normalize string to match key
     const key = Object.keys(styles).find(k => k.toLowerCase() === status.toLowerCase()) || 'default';
-    const style = key === 'default' ? defaultStyle : styles[key];
+    const style = styles[key] || styles.Present;
+
+    // Use translation if key exists, else fallback to status text
+    const displayStatus = t(key.toLowerCase().replace(' ', '_')) || status;
 
     return (
         <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${style}`}>
-            {status}
+            {displayStatus}
         </span>
     );
 }

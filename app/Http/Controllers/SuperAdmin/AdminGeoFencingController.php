@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Geofence;
 use App\Models\Department;
 use App\Models\User;
+use App\Models\District; // Import District
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Services\GeofenceService; 
@@ -21,12 +22,10 @@ class AdminGeoFencingController extends Controller
 
     public function index()
     {
-        // 1. Fetch Existing Geofences with relationships
         $geofences = Geofence::with(['departments:id,name', 'users:id,name'])
             ->latest()
             ->get()
             ->map(function ($geo) {
-                // Determine assignment label
                 $assign = 'Unassigned';
                 $type = 'unassigned';
 
@@ -43,49 +42,50 @@ class AdminGeoFencingController extends Controller
                     'name' => $geo->name,
                     'type' => $type,
                     'assign' => $assign,
-                    'location' => "{$geo->dist} > {$geo->block}",
-                    'status' => 'active', // Assuming all are active for now
+                    'location' => "{$geo->dist} > {$geo->block}", // You might want to map IDs to names here if storing IDs
+                    'status' => 'active',
                     'shape' => ucfirst($geo->shape_type),
                     'coordinates' => $geo->coordinates,
                     'radius' => $geo->radius,
                 ];
             });
 
-        // 2. Fetch Options for Dropdowns
         $departments = Department::select('id', 'name')->get();
-        // Fetch only relevant employees (e.g., exclude super admins if needed)
         $employees = User::where('role_id', '!=', 1)->select('id', 'name')->get();
+        
+        // --- ADDED: Fetch Active Districts ---
+        $districts = District::where('is_active', 1)->select('pk_district_id as id', 'district_name as name')->get();
 
         return Inertia::render('SuperAdmin/GeoFencing/Index', [
             'geofences' => $geofences,
             'departments' => $departments,
             'employees' => $employees,
+            'districts' => $districts, // Pass to View
         ]);
     }
 
     public function store(Request $request)
     {
-        // 1. Validate Input
+        // Debugging: Uncomment to see what data is actually hitting the server
+        // dd($request->all()); 
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'dist' => 'required|string',
-            'block' => 'nullable|string',
+            'dist' => 'required', // Accepts ID or String depending on your DB
+            'block' => 'nullable',
             'shape_type' => 'required|in:circle,polygon,rectangle',
             'coordinates' => 'required|array',
             'radius' => 'nullable|numeric',
             'assign_type' => 'required|in:department,employee',
-            'assignee_ids' => 'required|array',
-            'assignee_ids.*' => 'integer', // Ensure IDs are integers
+            'assignee_ids' => 'required|array|min:1', // Ensure at least one assignee
+            'assignee_ids.*' => 'integer',
         ]);
 
-        // 2. Use Service to Create
         $this->geofenceService->createGeofence($validated);
 
-        // 3. Redirect back (Inertia handles the page reload automatically)
         return redirect()->back()->with('success', 'Geofence created successfully.');
     }
-    
-    // Add delete/update methods here later
+
     public function destroy(Geofence $geofence)
     {
         $geofence->delete();
