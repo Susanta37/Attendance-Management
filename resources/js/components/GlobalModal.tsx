@@ -25,8 +25,18 @@ export default function GlobalModal({
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent 
                 className={cn(
-                    "max-w-[1000px] w-[95vw] h-[85vh] p-0 gap-0 border-none shadow-2xl flex flex-col",
+                    // Base Layout & Animation
+                    "p-0 gap-0 border-none shadow-2xl flex flex-col",
                     "bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md overflow-hidden",
+                    "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
+                    
+                    // Responsive Dimensions
+                    "w-full h-[90dvh] sm:h-[85vh] sm:rounded-xl", // Full screen mobile, modal style tablet+
+                    
+                    // Width Logic for "Big Screen Horizontal" support
+                    // We explicitly set max-width to allow the modal to stretch for maps
+                    "sm:max-w-[95vw] lg:max-w-[90vw] xl:max-w-[1600px] 2xl:max-w-[95vw]",
+                    
                     className
                 )}
             >
@@ -51,7 +61,7 @@ export default function GlobalModal({
                     </DialogClose>
                 </div>
 
-                {/* Content Body */}
+                {/* Content Body - Supports Horizontal Split on LG+ screens */}
                 <div className="flex-1 overflow-hidden relative z-10 flex flex-col lg:flex-row h-full">
                     {children}
                 </div>

@@ -1,13 +1,12 @@
-import { useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
+import { Head, useForm, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
-
-// Icons
+import { useTranslation } from '@/hooks/use-translation';
 import { 
     Users, Building2, Settings2, Plus, 
-    Search, Edit2, Trash2, Check, X, Smartphone, 
+    Search, Edit2, Trash2, Smartphone, 
     MapPin, Clock, ScanFace, ChevronRight, Save,
-    LockIcon
+    LockIcon, Loader2, Shield
 } from 'lucide-react';
 
 // UI Components
@@ -19,264 +18,350 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
 
-// --- Mock Data (Based on your Models) ---
+// --- Types ---
+interface UserProp {
+    id: number; name: string; email: string; role: string; department: string;
+    settings?: {
+        face_verification_enabled: boolean; gps_spoof_check_enabled: boolean;
+        live_tracking_enabled: boolean; shift_start: string; shift_end: string;
+        allow_outside_geofence: boolean; multiple_attendance_allowed: boolean;
+    };
+}
+interface DepartmentProp { id: number; name: string; type: string; parent: string | null; users_count: number; }
+interface RoleProp { id: number; name: string; permissions_count: number; }
 
-const departments = [
-    { id: 1, name: 'Odisha State HQ', parent: null, type: 'State', users_count: 5 },
-    { id: 2, name: 'Khurda District', parent: 'Odisha State HQ', type: 'District', users_count: 12 },
-    { id: 3, name: 'Bhubaneswar Block', parent: 'Khurda District', type: 'Block', users_count: 24 },
-    { id: 4, name: 'Chandaka GP', parent: 'Bhubaneswar Block', type: 'GP', users_count: 8 },
-];
+interface Props {
+    users: UserProp[];
+    departments: DepartmentProp[];
+    roles: RoleProp[];
+}
 
-const roles = [
-    { id: 1, name: 'Super Admin', slug: 'super-admin', permissions: ['all'] },
-    { id: 2, name: 'District Collector', slug: 'district-collector', permissions: ['view_reports', 'manage_users'] },
-    { id: 3, name: 'BDO', slug: 'bdo', permissions: ['view_block_reports'] },
-    { id: 4, name: 'Field Employee', slug: 'employee', permissions: ['check_in'] },
-];
+// --- Gradient Button Class ---
+const gradientBtnClass = "bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 text-white shadow-md border-0";
 
-const users = [
-    { 
-        id: 1, 
-        name: 'Rajesh Kumar', 
-        role: 'BDO', 
-        department: 'Bhubaneswar Block', 
-        email: 'rajesh@gov.in',
-        settings: {
-            face_verification_enabled: true,
-            gps_spoof_check_enabled: true,
-            live_tracking_enabled: true,
-            multiple_attendance_allowed: false,
-            allow_outside_geofence: false,
-            shift_start: '09:00',
-            shift_end: '17:00'
-        }
-    },
-    { 
-        id: 2, 
-        name: 'Priya Das', 
-        role: 'Field Employee', 
-        department: 'Chandaka GP', 
-        email: 'priya@gov.in',
-        settings: {
-            face_verification_enabled: true,
-            gps_spoof_check_enabled: true,
-            live_tracking_enabled: false,
-            multiple_attendance_allowed: true, // Maybe for multiple site visits
-            allow_outside_geofence: true,
-            shift_start: '08:00',
-            shift_end: '16:00'
-        }
-    },
-];
+// --- MODALS ---
 
-// --- Sub-Components ---
-
-// 1. User Settings Modal (The complex part connecting User & UserSettings)
+// 1. User Settings Modal
 function UserConfigModal({ user, isOpen, onClose }: { user: any, isOpen: boolean, onClose: () => void }) {
-    if (!user) return null;
+    const { t } = useTranslation();
+    if (!user || !user.settings) return null;
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="sm:max-w-2xl bg-white dark:bg-zinc-950 dark:border-zinc-800">
                 <DialogHeader>
-                    <DialogTitle>User Configuration: {user.name}</DialogTitle>
-                    <DialogDescription>
-                        Manage security protocols, shift timings, and device restrictions.
-                    </DialogDescription>
+                    <DialogTitle className="dark:text-white">{t('user_config')}: {user.name}</DialogTitle>
+                    <DialogDescription>{t('manage_security_shifts')}</DialogDescription>
                 </DialogHeader>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                    {/* Security Settings */}
                     <div className="space-y-4">
-                        <h4 className="font-medium flex items-center gap-2 text-blue-600">
-                            <LockIcon size={16} /> Security Protocols
-                        </h4>
-                        
-                        <div className="flex items-center justify-between border p-3 rounded-lg">
-                            <div className="space-y-0.5">
-                                <Label>Face Verification</Label>
-                                <p className="text-xs text-gray-500">Require selfie on check-in</p>
-                            </div>
+                        <h4 className="font-medium flex items-center gap-2 text-blue-600"><LockIcon size={16} /> {t('security_protocols')}</h4>
+                        <div className="flex items-center justify-between border dark:border-zinc-800 p-3 rounded-lg">
+                            <div className="space-y-0.5"><Label className="dark:text-gray-200">{t('face_verification')}</Label><p className="text-xs text-gray-500">{t('require_selfie')}</p></div>
                             <Switch checked={user.settings.face_verification_enabled} />
                         </div>
-
-                        <div className="flex items-center justify-between border p-3 rounded-lg">
-                            <div className="space-y-0.5">
-                                <Label>GPS Spoof Check</Label>
-                                <p className="text-xs text-gray-500">Detect mock location apps</p>
-                            </div>
+                        <div className="flex items-center justify-between border dark:border-zinc-800 p-3 rounded-lg">
+                            <div className="space-y-0.5"><Label className="dark:text-gray-200">{t('gps_spoof_check')}</Label><p className="text-xs text-gray-500">{t('detect_mock_location')}</p></div>
                             <Switch checked={user.settings.gps_spoof_check_enabled} />
                         </div>
-
-                        <div className="flex items-center justify-between border p-3 rounded-lg">
-                            <div className="space-y-0.5">
-                                <Label>Live Tracking</Label>
-                                <p className="text-xs text-gray-500">Track movement during shift</p>
-                            </div>
+                    </div>
+                    <div className="space-y-4">
+                        <h4 className="font-medium flex items-center gap-2 text-orange-600"><Settings2 size={16} /> {t('operations')}</h4>
+                        <div className="flex items-center justify-between border dark:border-zinc-800 p-3 rounded-lg">
+                            <div className="space-y-0.5"><Label className="dark:text-gray-200">{t('live_tracking')}</Label><p className="text-xs text-gray-500">{t('track_movement')}</p></div>
                             <Switch checked={user.settings.live_tracking_enabled} />
                         </div>
-                    </div>
-
-                    {/* Operational Settings */}
-                    <div className="space-y-4">
-                        <h4 className="font-medium flex items-center gap-2 text-orange-600">
-                            <Settings2 size={16} /> Operations
-                        </h4>
-
-                        <div className="flex items-center justify-between border p-3 rounded-lg">
-                            <div className="space-y-0.5">
-                                <Label>Geofence Bypass</Label>
-                                <p className="text-xs text-gray-500">Allow check-in outside zone</p>
-                            </div>
-                            <Switch checked={user.settings.allow_outside_geofence} />
-                        </div>
-
-                        <div className="flex items-center justify-between border p-3 rounded-lg">
-                            <div className="space-y-0.5">
-                                <Label>Multi-Attendance</Label>
-                                <p className="text-xs text-gray-500">Check-in multiple times/day</p>
-                            </div>
-                            <Switch checked={user.settings.multiple_attendance_allowed} />
-                        </div>
-
-                        {/* Shift Timing */}
-                        <div className="grid grid-cols-2 gap-3 pt-2">
+                         <div className="grid grid-cols-2 gap-3 pt-2">
                             <div className="space-y-2">
-                                <Label className="text-xs">Shift Start</Label>
-                                <div className="relative">
-                                    <Clock className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                                    <Input type="time" defaultValue={user.settings.shift_start} className="pl-8" />
-                                </div>
+                                <Label className="text-xs dark:text-gray-300">{t('shift_start')}</Label>
+                                <Input type="time" defaultValue={user.settings.shift_start} className="dark:bg-zinc-900 dark:border-zinc-700" />
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-xs">Shift End</Label>
-                                <div className="relative">
-                                    <Clock className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                                    <Input type="time" defaultValue={user.settings.shift_end} className="pl-8" />
-                                </div>
+                                <Label className="text-xs dark:text-gray-300">{t('shift_end')}</Label>
+                                <Input type="time" defaultValue={user.settings.shift_end} className="dark:bg-zinc-900 dark:border-zinc-700" />
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
-                    <Button><Save className="mr-2 h-4 w-4" /> Save Configuration</Button>
+                    <Button variant="outline" onClick={onClose} className="dark:bg-zinc-900 dark:text-white">{t('cancel')}</Button>
+                    <Button className={gradientBtnClass}><Save className="mr-2 h-4 w-4" /> {t('save_config')}</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 }
 
-// --- Main Component ---
+// 2. Add Department Modal
+function AddDepartmentModal({ isOpen, onClose, existingDepartments }: { isOpen: boolean, onClose: () => void, existingDepartments: DepartmentProp[] }) {
+    const { t } = useTranslation();
+    const { data, setData, post, processing, reset, errors } = useForm({
+        name: '', type: 'Block', parent_id: '',
+    });
+    const [parentOptions, setParentOptions] = useState<DepartmentProp[]>([]);
 
-export default function MasterDataIndex() {
-    const [activeTab, setActiveTab] = useState("users");
-    const [selectedUser, setSelectedUser] = useState<any>(null);
+    useEffect(() => {
+        if(data.type === 'District') setParentOptions(existingDepartments.filter(d => d.type === 'State'));
+        else if(data.type === 'Block') setParentOptions(existingDepartments.filter(d => d.type === 'District'));
+        else if(data.type === 'GP') setParentOptions(existingDepartments.filter(d => d.type === 'Block'));
+        else setParentOptions([]);
+    }, [data.type, existingDepartments]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        post('/admin/departments', { onSuccess: () => { reset(); onClose(); } });
+    };
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Master Data', href: '/master-data' }]}>
-            <Head title="Master Data Management" />
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-md bg-white dark:bg-zinc-950 dark:border-zinc-800">
+                <DialogHeader>
+                    <DialogTitle className="dark:text-white">{t('add_new_department')}</DialogTitle>
+                    <DialogDescription>{t('create_dept_desc')}</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label className="dark:text-gray-200">{t('department_name')}</Label>
+                        <Input value={data.name} onChange={e => setData('name', e.target.value)} placeholder="e.g. Finance Dept" className="dark:bg-zinc-900 dark:border-zinc-700"/>
+                        {errors.name && <p className="text-red-500 text-xs">{errors.name}</p>}
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="dark:text-gray-200">{t('department_type')}</Label>
+                        <Select onValueChange={val => setData('type', val)} defaultValue={data.type}>
+                            <SelectTrigger className="dark:bg-zinc-900 dark:border-zinc-700"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {['State','District','Block','GP'].map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {data.type !== 'State' && (
+                        <div className="space-y-2">
+                            <Label className="dark:text-gray-200">{t('parent_department')}</Label>
+                            <Select onValueChange={val => setData('parent_id', val)}>
+                                <SelectTrigger className="dark:bg-zinc-900 dark:border-zinc-700"><SelectValue placeholder={t('select_parent')} /></SelectTrigger>
+                                <SelectContent>
+                                    {parentOptions.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    <DialogFooter className="mt-4">
+                        <Button type="button" variant="outline" onClick={onClose} className="dark:bg-zinc-900 dark:text-white">{t('cancel')}</Button>
+                        <Button type="submit" disabled={processing} className={gradientBtnClass}>{processing && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}{t('create')}</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// 3. Add User Modal
+function AddUserModal({ isOpen, onClose, departments, roles }: { isOpen: boolean, onClose: () => void, departments: DepartmentProp[], roles: RoleProp[] }) {
+    const { t } = useTranslation();
+    const { data, setData, post, processing, reset, errors } = useForm({
+        name: '', email: '', password: '', role_id: '', department_id: '',
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        post('/admin/users-create', { onSuccess: () => { reset(); onClose(); } });
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-md bg-white dark:bg-zinc-950 dark:border-zinc-800">
+                <DialogHeader>
+                    <DialogTitle className="dark:text-white">{t('add_new_user')}</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label className="dark:text-gray-200">{t('full_name')}</Label>
+                        <Input value={data.name} onChange={e => setData('name', e.target.value)} className="dark:bg-zinc-900 dark:border-zinc-700"/>
+                        {errors.name && <p className="text-red-500 text-xs">{errors.name}</p>}
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="dark:text-gray-200">{t('email')}</Label>
+                        <Input type="email" value={data.email} onChange={e => setData('email', e.target.value)} className="dark:bg-zinc-900 dark:border-zinc-700"/>
+                        {errors.email && <p className="text-red-500 text-xs">{errors.email}</p>}
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="dark:text-gray-200">{t('password')}</Label>
+                        <Input type="password" value={data.password} onChange={e => setData('password', e.target.value)} className="dark:bg-zinc-900 dark:border-zinc-700"/>
+                        {errors.password && <p className="text-red-500 text-xs">{errors.password}</p>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                         <div className="space-y-2">
+                            <Label className="dark:text-gray-200">{t('role')}</Label>
+                            <Select onValueChange={val => setData('role_id', val)}>
+                                <SelectTrigger className="dark:bg-zinc-900 dark:border-zinc-700"><SelectValue placeholder={t('select_role')} /></SelectTrigger>
+                                <SelectContent>{roles.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            {errors.role_id && <p className="text-red-500 text-xs">{errors.role_id}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="dark:text-gray-200">{t('department')}</Label>
+                            <Select onValueChange={val => setData('department_id', val)}>
+                                <SelectTrigger className="dark:bg-zinc-900 dark:border-zinc-700"><SelectValue placeholder={t('select_dept')} /></SelectTrigger>
+                                <SelectContent>{departments.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            {errors.department_id && <p className="text-red-500 text-xs">{errors.department_id}</p>}
+                        </div>
+                    </div>
+                    <DialogFooter className="mt-4">
+                        <Button type="button" variant="outline" onClick={onClose} className="dark:bg-zinc-900 dark:text-white">{t('cancel')}</Button>
+                        <Button type="submit" disabled={processing} className={gradientBtnClass}>{t('create')}</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// 4. Add Role Modal
+function AddRoleModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+    const { t } = useTranslation();
+    const { data, setData, post, processing, reset, errors } = useForm({ name: '' });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        post('/admin/roles', { onSuccess: () => { reset(); onClose(); } });
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-md bg-white dark:bg-zinc-950 dark:border-zinc-800">
+                <DialogHeader>
+                    <DialogTitle className="dark:text-white">{t('create_new_role')}</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label className="dark:text-gray-200">{t('role_name')}</Label>
+                        <Input value={data.name} onChange={e => setData('name', e.target.value)} placeholder="e.g. Area Manager" className="dark:bg-zinc-900 dark:border-zinc-700"/>
+                        {errors.name && <p className="text-red-500 text-xs">{errors.name}</p>}
+                    </div>
+                    <DialogFooter className="mt-4">
+                        <Button type="button" variant="outline" onClick={onClose} className="dark:bg-zinc-900 dark:text-white">{t('cancel')}</Button>
+                        <Button type="submit" disabled={processing} className={gradientBtnClass}>{t('create')}</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// --- Main Page Component ---
+export default function MasterDataIndex({ users, departments, roles }: Props) {
+    const { t } = useTranslation();
+    const [activeTab, setActiveTab] = useState("users");
+    const [selectedUser, setSelectedUser] = useState<any>(null);
+    
+    // Modal States
+    const [isDeptModalOpen, setIsDeptModalOpen] = useState(false);
+    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+    const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+
+    const [search, setSearch] = useState('');
+
+    const filteredUsers = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.includes(search.toLowerCase()));
+    const filteredDepts = departments.filter(d => d.name.toLowerCase().includes(search.toLowerCase()));
+
+    return (
+        <AppLayout breadcrumbs={[{ title: t('dashboard'), href: '/dashboard' }, { title: t('master_data'), href: '/master-data' }]}>
+            <Head title={t('master_data_management')} />
 
             <div className="flex flex-col gap-6 p-6 bg-gray-50/50 dark:bg-zinc-950 min-h-screen">
                 
-                {/* Page Header */}
+                {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Master Data</h1>
-                        <p className="text-sm text-gray-500">Manage organizational structure, access controls, and user policies.</p>
+                        <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{t('master_data')}</h1>
+                        <p className="text-sm text-gray-500">{t('master_data_subtitle')}</p>
                     </div>
                     <div className="flex gap-2">
-                        <Button className="bg-blue-600 hover:bg-blue-700">
-                            <Plus className="mr-2 h-4 w-4" /> Add New {activeTab === 'users' ? 'User' : activeTab === 'departments' ? 'Department' : 'Role'}
-                        </Button>
+                        {activeTab === 'departments' && (
+                            <Button className={gradientBtnClass} onClick={() => setIsDeptModalOpen(true)}>
+                                <Plus className="mr-2 h-4 w-4" /> {t('add_department')}
+                            </Button>
+                        )}
+                        {activeTab === 'users' && (
+                            <Button className={gradientBtnClass} onClick={() => setIsUserModalOpen(true)}>
+                                <Plus className="mr-2 h-4 w-4" /> {t('add_user')}
+                            </Button>
+                        )}
+                        {activeTab === 'roles' && (
+                            <Button className={gradientBtnClass} onClick={() => setIsRoleModalOpen(true)}>
+                                <Plus className="mr-2 h-4 w-4" /> {t('add_role')}
+                            </Button>
+                        )}
                     </div>
                 </div>
 
-                {/* Main Content Tabs */}
+                {/* Tabs */}
                 <Tabs defaultValue="users" className="w-full space-y-6" onValueChange={setActiveTab}>
-                    
                     <div className="flex items-center justify-between">
                         <TabsList className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 p-1">
-                            <TabsTrigger value="users" className="gap-2"><Users size={14}/> Users & Settings</TabsTrigger>
-                            <TabsTrigger value="departments" className="gap-2"><Building2 size={14}/> Departments</TabsTrigger>
-                            <TabsTrigger value="roles" className="gap-2"><LockIcon size={14}/> Roles & Permissions</TabsTrigger>
+                            <TabsTrigger value="users" className="gap-2"><Users size={14}/> {t('users_settings')}</TabsTrigger>
+                            <TabsTrigger value="departments" className="gap-2"><Building2 size={14}/> {t('departments')}</TabsTrigger>
+                            <TabsTrigger value="roles" className="gap-2"><LockIcon size={14}/> {t('roles_permissions')}</TabsTrigger>
                         </TabsList>
-
                         <div className="relative w-64 hidden md:block">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                            <Input placeholder="Search..." className="pl-9 bg-white dark:bg-zinc-900" />
+                            <Input placeholder={t('search_placeholder')} className="pl-9 bg-white dark:bg-zinc-900" value={search} onChange={(e) => setSearch(e.target.value)} />
                         </div>
                     </div>
 
-                    {/* --- TAB 1: USERS & SETTINGS --- */}
+                    {/* Tab 1: Users */}
                     <TabsContent value="users" className="space-y-4">
-                        <Card>
+                        <Card className="dark:border-zinc-800 dark:bg-zinc-900">
                             <CardHeader>
-                                <CardTitle>User Directory</CardTitle>
-                                <CardDescription>Manage user accounts and specific device/attendance settings.</CardDescription>
+                                <CardTitle className="dark:text-white">{t('user_directory')}</CardTitle>
+                                <CardDescription className="dark:text-gray-400">{t('user_directory_desc')}</CardDescription>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-left">
-                                        <thead className="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-zinc-900 border-b">
+                                        <thead className="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-zinc-800/50 border-b dark:border-zinc-800">
                                             <tr>
-                                                <th className="px-6 py-3">Employee</th>
-                                                <th className="px-6 py-3">Role & Dept</th>
-                                                <th className="px-6 py-3">Security Features</th>
-                                                <th className="px-6 py-3">Shift</th>
-                                                <th className="px-6 py-3 text-right">Action</th>
+                                                <th className="px-6 py-3">{t('employee')}</th>
+                                                <th className="px-6 py-3">{t('role_dept')}</th>
+                                                <th className="px-6 py-3">{t('security_features')}</th>
+                                                <th className="px-6 py-3">{t('shift')}</th>
+                                                <th className="px-6 py-3 text-right">{t('action')}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                                            {users.map((user) => (
-                                                <tr key={user.id} className="bg-white dark:bg-zinc-950 hover:bg-gray-50/50">
+                                            {filteredUsers.length === 0 ? (
+                                                <tr><td colSpan={5} className="text-center py-8 text-gray-500 dark:text-gray-400">{t('no_data')}</td></tr>
+                                            ) : filteredUsers.map((user) => (
+                                                <tr key={user.id} className="bg-white dark:bg-zinc-950 hover:bg-gray-50 dark:hover:bg-zinc-900 transition">
                                                     <td className="px-6 py-4">
                                                         <div className="font-medium text-gray-900 dark:text-white">{user.name}</div>
                                                         <div className="text-xs text-gray-500">{user.email}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex flex-col gap-1">
-                                                            <Badge variant="outline" className="w-fit">{user.role}</Badge>
+                                                            <Badge variant="outline" className="w-fit dark:text-gray-300 dark:border-gray-700">{user.role}</Badge>
                                                             <span className="text-xs text-gray-500">{user.department}</span>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex gap-2">
-                                                            {user.settings.face_verification_enabled && 
-                                                                <div title="Face ID On" className="p-1 bg-green-100 text-green-700 rounded"><ScanFace size={14}/></div>
-                                                            }
-                                                            {user.settings.gps_spoof_check_enabled && 
-                                                                <div title="Anti-Spoof On" className="p-1 bg-blue-100 text-blue-700 rounded"><MapPin size={14}/></div>
-                                                            }
-                                                            {user.settings.live_tracking_enabled && 
-                                                                <div title="Live Tracking On" className="p-1 bg-purple-100 text-purple-700 rounded"><Smartphone size={14}/></div>
-                                                            }
+                                                            {user.settings?.face_verification_enabled && <div title={t('face_verification')} className="p-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded"><ScanFace size={14}/></div>}
+                                                            {user.settings?.gps_spoof_check_enabled && <div title={t('gps_spoof_check')} className="p-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded"><MapPin size={14}/></div>}
+                                                            {user.settings?.live_tracking_enabled && <div title={t('live_tracking')} className="p-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded"><Smartphone size={14}/></div>}
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 font-mono text-xs">
-                                                        {user.settings.shift_start} - {user.settings.shift_end}
+                                                    <td className="px-6 py-4 font-mono text-xs dark:text-gray-300">
+                                                        {user.settings?.shift_start} - {user.settings?.shift_end}
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
-                                                        <Button 
-                                                            variant="ghost" 
-                                                            size="sm" 
-                                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                                            onClick={() => setSelectedUser(user)}
-                                                        >
-                                                            <Settings2 size={16} className="mr-2"/> Configure
+                                                        <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20" onClick={() => setSelectedUser(user)}>
+                                                            <Settings2 size={16} className="mr-2"/> {t('configure')}
                                                         </Button>
                                                     </td>
                                                 </tr>
@@ -290,47 +375,41 @@ export default function MasterDataIndex() {
 
                     {/* --- TAB 2: DEPARTMENTS --- */}
                     <TabsContent value="departments" className="space-y-4">
-                        <Card>
+                        <Card className="dark:border-zinc-800 dark:bg-zinc-900">
                             <CardHeader>
-                                <CardTitle>Department Hierarchy</CardTitle>
-                                <CardDescription>Structure of State, Districts, Blocks, and Gram Panchayats.</CardDescription>
+                                <CardTitle className="dark:text-white">{t('dept_hierarchy')}</CardTitle>
+                                <CardDescription className="dark:text-gray-400">{t('dept_hierarchy_desc')}</CardDescription>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-left">
-                                        <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b">
+                                        <thead className="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-zinc-800/50 border-b dark:border-zinc-800">
                                             <tr>
-                                                <th className="px-6 py-3">Department Name</th>
-                                                <th className="px-6 py-3">Type</th>
-                                                <th className="px-6 py-3">Parent Dept</th>
-                                                <th className="px-6 py-3 text-right">Employees</th>
-                                                <th className="px-6 py-3 text-right">Action</th>
+                                                <th className="px-6 py-3">{t('department_name')}</th>
+                                                <th className="px-6 py-3">{t('type')}</th>
+                                                <th className="px-6 py-3">{t('parent_dept')}</th>
+                                                <th className="px-6 py-3 text-right">{t('employees')}</th>
+                                                <th className="px-6 py-3 text-right">{t('action')}</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            {departments.map((dept) => (
-                                                <tr key={dept.id} className="bg-white border-b hover:bg-gray-50">
+                                        <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                                            {filteredDepts.map((dept) => (
+                                                <tr key={dept.id} className="bg-white dark:bg-zinc-950 hover:bg-gray-50 dark:hover:bg-zinc-900 transition">
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2">
                                                             <Building2 size={16} className="text-gray-400" />
-                                                            <span className="font-medium text-gray-900">{dept.name}</span>
+                                                            <span className="font-medium text-gray-900 dark:text-white">{dept.name}</span>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <Badge variant="secondary" className="font-normal">{dept.type}</Badge>
+                                                        <Badge variant="secondary" className="font-normal dark:bg-zinc-800 dark:text-gray-300">{dept.type}</Badge>
                                                     </td>
                                                     <td className="px-6 py-4 text-gray-500">
-                                                        {dept.parent ? (
-                                                            <div className="flex items-center gap-1">
-                                                                <span className="text-xs">↳</span> {dept.parent}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-xs text-gray-400 italic">Root</span>
-                                                        )}
+                                                        {dept.parent ? <div className="flex items-center gap-1"><span className="text-xs">↳</span> {dept.parent}</div> : <span className="text-xs text-gray-400 italic">Root</span>}
                                                     </td>
-                                                    <td className="px-6 py-4 text-right font-mono text-xs">{dept.users_count}</td>
+                                                    <td className="px-6 py-4 text-right font-mono text-xs dark:text-gray-300">{dept.users_count}</td>
                                                     <td className="px-6 py-4 text-right">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8"><Edit2 size={14}/></Button>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 dark:text-gray-400"><Edit2 size={14}/></Button>
                                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500"><Trash2 size={14}/></Button>
                                                     </td>
                                                 </tr>
@@ -342,71 +421,36 @@ export default function MasterDataIndex() {
                         </Card>
                     </TabsContent>
 
-                    {/* --- TAB 3: ROLES & PERMISSIONS --- */}
+                    {/* --- TAB 3: ROLES --- */}
                     <TabsContent value="roles" className="space-y-4">
                         <div className="grid md:grid-cols-3 gap-6">
-                            {/* Role List */}
-                            <Card className="md:col-span-1">
+                            <Card className="md:col-span-1 dark:border-zinc-800 dark:bg-zinc-900">
                                 <CardHeader>
-                                    <CardTitle>Defined Roles</CardTitle>
+                                    <CardTitle className="dark:text-white">{t('defined_roles')}</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-2">
                                     {roles.map((role) => (
-                                        <div key={role.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition">
+                                        <div key={role.id} className="flex items-center justify-between p-3 border dark:border-zinc-800 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer transition">
                                             <div>
-                                                <div className="font-medium">{role.name}</div>
-                                                <div className="text-xs text-gray-500">{role.permissions.length} Permissions</div>
+                                                <div className="font-medium dark:text-white">{role.name}</div>
+                                                <div className="text-xs text-gray-500">{role.permissions_count} {t('permissions')}</div>
                                             </div>
                                             <ChevronRight size={16} className="text-gray-400"/>
                                         </div>
                                     ))}
-                                    <Button variant="outline" className="w-full mt-4 border-dashed">
-                                        <Plus size={16} className="mr-2"/> Create New Role
+                                    <Button variant="outline" className="w-full mt-4 border-dashed dark:bg-zinc-900 dark:text-white dark:border-zinc-700" onClick={() => setIsRoleModalOpen(true)}>
+                                        <Plus size={16} className="mr-2"/> {t('create_new_role')}
                                     </Button>
                                 </CardContent>
                             </Card>
-
-                            {/* Permission Matrix (Mocked for UI) */}
-                            <Card className="md:col-span-2">
+                            <Card className="md:col-span-2 dark:border-zinc-800 dark:bg-zinc-900">
                                 <CardHeader>
-                                    <CardTitle>Permissions: District Collector</CardTitle>
-                                    <CardDescription>Configure access rights for this role.</CardDescription>
+                                    <CardTitle className="dark:text-white">{t('permissions_for')}: District Collector</CardTitle>
+                                    <CardDescription className="dark:text-gray-400">{t('config_access_rights')}</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="space-y-6">
-                                        <div>
-                                            <h4 className="text-sm font-semibold mb-3 flex items-center gap-2"><MapPin size={14}/> Geofencing</h4>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="flex items-center space-x-2">
-                                                    <Switch id="p1" defaultChecked />
-                                                    <Label htmlFor="p1">Create Geofences</Label>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <Switch id="p2" defaultChecked />
-                                                    <Label htmlFor="p2">Assign Geofences</Label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="border-t pt-4">
-                                            <h4 className="text-sm font-semibold mb-3 flex items-center gap-2"><Users size={14}/> User Management</h4>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="flex items-center space-x-2">
-                                                    <Switch id="p3" defaultChecked />
-                                                    <Label htmlFor="p3">Create Users</Label>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <Switch id="p4" defaultChecked />
-                                                    <Label htmlFor="p4">Edit Master Data</Label>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <Switch id="p5" />
-                                                    <Label htmlFor="p5">Delete Users</Label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="mt-8 flex justify-end">
-                                        <Button><Save size={16} className="mr-2"/> Save Permissions</Button>
+                                    <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+                                        Select a role to view permissions (Mock UI)
                                     </div>
                                 </CardContent>
                             </Card>
@@ -416,13 +460,11 @@ export default function MasterDataIndex() {
                 </Tabs>
             </div>
 
-            {/* User Config Modal */}
-            <UserConfigModal 
-                user={selectedUser} 
-                isOpen={!!selectedUser} 
-                onClose={() => setSelectedUser(null)} 
-            />
-
+            {/* Render All Modals */}
+            <UserConfigModal user={selectedUser} isOpen={!!selectedUser} onClose={() => setSelectedUser(null)} />
+            <AddDepartmentModal isOpen={isDeptModalOpen} onClose={() => setIsDeptModalOpen(false)} existingDepartments={departments} />
+            <AddUserModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} departments={departments} roles={roles} />
+            <AddRoleModal isOpen={isRoleModalOpen} onClose={() => setIsRoleModalOpen(false)} />
         </AppLayout>
     );
 }

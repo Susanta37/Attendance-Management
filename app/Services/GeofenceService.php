@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Geofence;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 
 class GeofenceService
 {
@@ -41,31 +43,46 @@ class GeofenceService
             $inside = false;
             $distance = null; // Only circles use distance
 
-            switch ($fence->shape_type) {
+           switch ($fence->shape_type) {
 
-                case 'circle':
-                    $coords = $fence->coordinates; // {lat, lng}
-                    $distance = self::haversine($lat, $lng, $coords['lat'], $coords['lng']);
-                    $inside = $distance <= $fence->radius;
+    case 'circle':
+        if (!isset($fence->coordinates[0]['lat'], $fence->coordinates[0]['lng'])) {
+            Log::error('INVALID CIRCLE GEOFENCE COORDINATES', [
+                'fence_id' => $fence->id,
+                'coordinates' => $fence->coordinates
+            ]);
+            break;
+        }
 
-                    if ($distance < $closestDistance) {
-                        $closestDistance = $distance;
-                        $closestFence = $fence;
-                    }
-                    break;
+        $coords = $fence->coordinates[0];
 
-                case 'polygon':
-                    $inside = self::pointInPolygon(['lat' => $lat, 'lng' => $lng], $fence->coordinates);
-                    break;
+        $distance = self::haversine(
+            $lat,
+            $lng,
+            $coords['lat'],
+            $coords['lng']
+        );
 
-                case 'rect':
-                    $inside = self::pointInRectangle($lat, $lng, $fence->coordinates);
-                    break;
+        $inside = $distance <= $fence->radius;
 
-                default:
-                    // Unknown geofence type
-                    continue 2;
-            }
+        if ($distance < $closestDistance) {
+            $closestDistance = $distance;
+            $closestFence = $fence;
+        }
+        break;
+
+    case 'polygon':
+        $inside = self::pointInPolygon(
+            ['lat' => $lat, 'lng' => $lng],
+            $fence->coordinates
+        );
+        break;
+
+    case 'rect':
+        $inside = self::pointInRectangle($lat, $lng, $fence->coordinates);
+        break;
+}
+
 
             if ($inside) {
                 $insideAny = true;
@@ -140,5 +157,142 @@ class GeofenceService
         $lngMax = max($rect[0]['lng'], $rect[1]['lng']);
 
         return $lat >= $latMin && $lat <= $latMax && $lng >= $lngMin && $lng <= $lngMax;
+    }
+
+
+    public function createGeofence(array $data): Geofence
+    {
+        // 1. Create the Geofence
+        $geofence = Geofence::create([
+            'name' => $data['name'],
+            'dist' => $data['dist'],
+            'block' => $data['block'] ?? null,
+            'coordinates' => $data['coordinates'],
+            'shape_type' => $data['shape_type'],
+            'radius' => $data['radius'] ?? null, // Only for Circle
+        ]);
+
+        // 2. Attach assignees
+        if ($data['assign_type'] === 'department' && !empty($data['assignee_ids'])) {
+            $geofence->departments()->attach($data['assignee_ids']);
+        }
+
+        if ($data['assign_type'] === 'employee' && !empty($data['assignee_ids'])) {
+            $geofence->users()->attach($data['assignee_ids']);
+        }
+
+        return $geofence;
+    }
+
+    // --- Geofence Check Logic (For future Attendance System) ---
+
+    /**
+     * Checks if a point is inside a geofence.
+     * Includes logic for Circle, Rectangle, and Polygon.
+     *
+     * @param float $lat
+     * @param float $lng
+     * @param Geofence $geofence
+     * @return bool
+     */
+    public function isPointInGeofence(float $lat, float $lng, Geofence $geofence): bool
+    {
+        $coords = $geofence->coordinates;
+        $shape = strtolower($geofence->shape_type);
+
+        return match ($shape) {
+            'circle' => $this->isPointInCircle($lat, $lng, $coords[0]['lat'], $coords[0]['lng'], $geofence->radius),
+            'polygon' => $this->isPointInPolygon($lat, $lng, $coords),
+            'rectangle' => $this->isPointInRectangle($lat, $lng, $coords),
+            default => false,
+        };
+    }
+
+    /**
+     * Check if a point is inside a circle.
+     * Uses Haversine formula to calculate distance between two points.
+     *
+     * @param float $pointLat
+     * @param float $pointLng
+     * @param float $centerLat
+     * @param float $centerLng
+     * @param float $radius In meters
+     * @return bool
+     */
+    protected function isPointInCircle(float $pointLat, float $pointLng, float $centerLat, float $centerLng, float $radius): bool
+    {
+        $earthRadius = 6371000; // in meters
+
+        $latFrom = deg2rad($centerLat);
+        $lonFrom = deg2rad($centerLng);
+        $latTo = deg2rad($pointLat);
+        $lonTo = deg2rad($pointLng);
+
+        $lonDelta = $lonTo - $lonFrom;
+        $latDelta = $latTo - $latFrom;
+
+        $angle = 2 * asin(sqrt(pow(sin($latDelta / 2), 2) +
+            cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
+
+        $distance = $angle * $earthRadius;
+
+        return $distance <= $radius;
+    }
+
+    /**
+     * Check if a point is inside a polygon (Ray Casting Algorithm).
+     * The polygon coordinates must be an array of objects: [{'lat': 1.2, 'lng': 3.4}, ...].
+     *
+     * @param float $pointLat
+     * @param float $pointLng
+     * @param array $polygon
+     * @return bool
+     */
+    protected function isPointInPolygon(float $pointLat, float $pointLng, array $polygon): bool
+    {
+        $intersectCount = 0;
+        $pointX = $pointLng;
+        $pointY = $pointLat;
+        $polyCount = count($polygon);
+
+        for ($i = 0; $i < $polyCount; $i++) {
+            $j = ($i + 1) % $polyCount; // Next vertex
+            $vertex1X = $polygon[$i]['lng'];
+            $vertex1Y = $polygon[$i]['lat'];
+            $vertex2X = $polygon[$j]['lng'];
+            $vertex2Y = $polygon[$j]['lat'];
+
+            // Check if ray intersects the segment
+            if ((($vertex1Y <= $pointY && $pointY < $vertex2Y) || ($vertex2Y <= $pointY && $pointY < $vertex1Y)) &&
+                ($pointX < ($vertex2X - $vertex1X) * ($pointY - $vertex1Y) / ($vertex2Y - $vertex1Y) + $vertex1X)) {
+                $intersectCount++;
+            }
+        }
+
+        // Odd number of intersections means the point is inside
+        return $intersectCount % 2 === 1;
+    }
+
+    /**
+     * Check if a point is inside a rectangle.
+     * The rectangle coordinates will be two points (South-West and North-East corners).
+     *
+     * @param float $pointLat
+     * @param float $pointLng
+     * @param array $rectangle The bounds: [{'lat': south, 'lng': west}, {'lat': north, 'lng': east}]
+     * @return bool
+     */
+    protected function isPointInRectangle(float $pointLat, float $pointLng, array $rectangle): bool
+    {
+        // Assuming the Leaflet Draw rectangle gives us the bounds (SW and NE corners)
+        if (count($rectangle) < 2) {
+            return false;
+        }
+
+        $sw = $rectangle[0]; // South-West
+        $ne = $rectangle[1]; // North-East
+
+        return ($pointLat >= $sw['lat'] && $pointLat <= $ne['lat']) &&
+               ($pointLng >= $sw['lng'] && $pointLng <= $ne['lng']);
     }
 }

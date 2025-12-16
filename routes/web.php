@@ -33,6 +33,9 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+Route::get('/api/blocks/{districtId}', [AdminUserManagementController::class, 'getBlocks']);
+Route::get('/api/gps/{blockId}', [AdminUserManagementController::class, 'getGps']);
+
 Route::middleware(['auth', 'verified'])->group(function () {
     
     Route::get('/dashboard', function () {
@@ -62,11 +65,22 @@ Route::middleware(['role:collector,district_admin'])
              // This controller needs to be created
              Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
              Route::get('/geofences', [AdminGeoFencingController::class, 'index'])->name('geofencing');
+             Route::prefix('geofences')->name('geofences.')->group(function () {
+             Route::post('/', [AdminGeoFencingController::class, 'store'])->name('store');
+             Route::put('/{geofence}', [AdminGeoFencingController::class, 'update'])->name('update');
+             Route::delete('/{geofence}', [AdminGeoFencingController::class, 'destroy'])->name('destroy');
+         });
+            Route::get('/masterdata', [AdminMasterDataController::class, 'index'])->name('masterdata.index');
+            Route::post('/departments', [AdminMasterDataController::class, 'storeDepartment'])->name('departments.store');
+            Route::post('/users-create', [AdminMasterDataController::class, 'storeUser'])->name('users.store.master'); // Distinct name
+            Route::post('/roles', [AdminMasterDataController::class, 'storeRole'])->name('roles.store');
+            
              Route::get('/users', [AdminUserManagementController::class, 'index'])->name('user_management');
              Route::get('/attendance', [AdminAttendanceController::class, 'index'])->name('attendance');
              Route::get('/attendance/{userId}/records', [AdminAttendanceController::class, 'getUserAttendances'])->name('attendance.user_records');
              Route::get('/attendance/{userId}/live-location', [AdminAttendanceController::class, 'getLiveLocation'])->name('attendance.live_location');
              Route::get('/reports', [AdminReportsController::class, 'index'])->name('reports');
+             Route::get('/reports/{id}/download', [AdminReportsController::class, 'download'])->name('reports.download');
              Route::get('/masterdata', [AdminMasterDataController::class, 'index'])->name('masterdata');
              
              // User Management API Routes
