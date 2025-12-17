@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class AttendanceHistoryController extends Controller
@@ -74,26 +75,37 @@ class AttendanceHistoryController extends Controller
     $absentDays = null;
 
     if ($startDate && $endDate) {
-        $totalDays = \Carbon\Carbon::parse($startDate)
-            ->diffInDays(\Carbon\Carbon::parse($endDate)) + 1;
+        $totalDays = Carbon::parse($startDate)
+            ->diffInDays(Carbon::parse($endDate)) + 1;
 
         $absentDays = max(0, $totalDays - $presentDays);
     }
 
     // Response mapping
-    $data = $attendances->map(function ($a) {
-        return [
-            'id'                     => $a->id,
-            'date'                   => $a->date,
-            'check_in_time'          => $a->check_in_time,
-            'check_out_time'         => $a->check_out_time,
-            'is_inside_fence'        => $a->is_inside_fence,
-            'distance_from_fence_m'  => $a->distance_from_fence_m,
-            'is_face_matched'        => $a->is_face_matched,
-            'is_anomaly'             => $a->is_anomaly,
-            'device_id'              => $a->device_id,
-        ];
-    });
+ $data = $attendances->map(function ($a) {
+    return [
+        'id' => $a->id,
+
+        'date' => $a->date
+            ? Carbon::parse($a->date)->timezone('Asia/Kolkata')
+            : null,
+
+        'check_in_time' => $a->check_in_time
+            ? Carbon::parse($a->check_in_time)->timezone('Asia/Kolkata')
+            : null,
+
+        'check_out_time' => $a->check_out_time
+            ? Carbon::parse($a->check_out_time)->timezone('Asia/Kolkata')
+            : null,
+
+        'is_inside_fence'       => $a->is_inside_fence,
+        'distance_from_fence_m' => $a->distance_from_fence_m,
+        'is_face_matched'       => $a->is_face_matched,
+        'is_anomaly'            => $a->is_anomaly,
+        'device_id'             => $a->device_id,
+    ];
+});
+
 
     return response()->json([
         'status' => true,

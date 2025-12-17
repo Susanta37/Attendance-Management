@@ -89,9 +89,17 @@ class User extends Authenticatable
         return $this->hasMany(UserDocument::class);
     }
 
-    public function faceEmbedding()
-    {
-        return $this->hasOne(UserFaceEmbedding::class);
-    }
+public function faceEmbedding()
+{
+    // This correctly grabs the row with the highest ID (newest) efficiently
+    return $this->hasOne(UserFaceEmbedding::class)->latestOfMany();
+}
+
+// efficiently fetch the latest location
+public function latestLocation()
+{
+    return $this->hasOne(EmployeeLocation::class)->latestOfMany();
+}
+
 
 }
