@@ -139,7 +139,7 @@ export default function UserManagement({
             } else {
                 await userService.deleteUser(user.id);
             }
-            loadUsers(); 
+            loadUsers();
         } catch (error) {
             console.error("Status toggle failed", error);
             alert(t('status_update_failed'));
@@ -186,7 +186,7 @@ export default function UserManagement({
                         <ListFilter size={16} className="text-gray-500" />
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('filters')}:</span>
                     </div>
-                    
+
                     <Input
                         placeholder={t('search_placeholder')}
                         value={search}
@@ -209,8 +209,8 @@ export default function UserManagement({
                     <Button
                         className="ml-auto bg-orange-600 hover:bg-orange-700 h-9"
                         onClick={() => {
-                            setSelectedUser(null) 
-                            setIsUserOpen(true) 
+                            setSelectedUser(null)
+                            setIsUserOpen(true)
                         }}
                     >
                         <UserPlus className="mr-2 h-4 w-4" /> {t('add_user')}
@@ -266,8 +266,8 @@ export default function UserManagement({
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <Badge 
-                                                        variant="outline" 
+                                                    <Badge
+                                                        variant="outline"
                                                         className={`cursor-pointer font-medium ${docStatus.color === 'green' ? 'bg-green-50 text-green-700' : docStatus.color === 'orange' ? 'bg-orange-50 text-orange-700' : 'bg-gray-100 text-gray-600'}`}
                                                         onClick={() => { setSelectedUser(u); setIsDocOpen(true); }}
                                                     >
@@ -279,16 +279,32 @@ export default function UserManagement({
                                                         {u.deleted_at ? t('inactive') : t('active')}
                                                     </Badge>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <Button 
-                                                        size="sm" 
+                                                {/* <td className="px-6 py-4">
+                                                    <Button
+                                                        size="sm"
                                                         variant="outline"
                                                         className="h-8 text-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
                                                         onClick={() => { setSelectedUser(u); setIsFaceOpen(true) }}
                                                     >
                                                         <Camera className="h-3 w-3 mr-1" /> {u.faceEmbedding ? t('view') : t('register')}
                                                     </Button>
-                                                </td>
+                                                </td> */}
+                                                <td className="px-6 py-4">
+    {u.face_embedding?.registered_image ? (
+        <img
+    src={`${window.location.origin}/storage/${u.face_embedding.registered_image}`}
+    alt="Face"
+    className="h-10 w-10 rounded-full object-cover border"
+    onError={(e) => {
+        (e.currentTarget as HTMLImageElement).src = '/images/no-face.png'
+    }}
+/>
+
+    ) : (
+        <span className="text-xs text-gray-400">No Photo</span>
+    )}
+</td>
+
                                                 <td className="px-6 py-4 text-right">
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
@@ -317,7 +333,7 @@ export default function UserManagement({
                 </Card>
 
                 {/* --- MODALS --- */}
-                
+
                 {/* 1. Add/Edit User */}
                 <UserDialog
                     open={isUserOpen}
@@ -360,13 +376,17 @@ function UserDialog({ open, onOpenChange, user, roles, departments, districts, u
         name: '', email: '', phone: '', password: '',
         role_id: 0, department_id: 0, address: '',
         district: '', block: '', gram_panchayat: '', pincode: '',
-        settings: {},
+       settings: userSettingsSchema.reduce((acc: any, s: any) => {
+    acc[s.key] = s.default;
+    return acc;
+}, {}),
+
     };
 
     const [formData, setFormData] = useState<UserFormData>(defaultFormData);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<any>({});
-    
+
     // Dynamic Options
     const [blockOptions, setBlockOptions] = useState<any[]>([]);
     const [gpOptions, setGpOptions] = useState<any[]>([]);
@@ -398,7 +418,7 @@ function UserDialog({ open, onOpenChange, user, roles, departments, districts, u
             try {
                 const res = await axios.get(`/api/blocks/${districtId}`);
                 setBlockOptions(res.data);
-            } catch (e) { console.error(e); } 
+            } catch (e) { console.error(e); }
             finally { setLoadingBlocks(false); }
         }
     };
@@ -411,7 +431,7 @@ function UserDialog({ open, onOpenChange, user, roles, departments, districts, u
             try {
                 const res = await axios.get(`/api/gps/${blockId}`);
                 setGpOptions(res.data);
-            } catch (e) { console.error(e); } 
+            } catch (e) { console.error(e); }
             finally { setLoadingGps(false); }
         }
     };
@@ -663,12 +683,16 @@ function FaceEnrollmentDialog({ open, onOpenChange, user, onSuccess }: any) {
 
     const handleSubmit = async () => {
         if(!image || !user) return;
+        if (!image || image.length < 5000) {
+        setError('Image too small. Please retake with clear face.');
+        return;
+    }
         setLoading(true); setError('');
         try {
             const action = user.faceEmbedding ? userService.reEnrollFace : userService.enrollFace;
             await action(user.id, image);
             setSuccess(t('enrollment_success')); onSuccess(); setTimeout(() => onOpenChange(false), 1000);
-        } catch (e: any) { setError(e.response?.data?.message || t('failed')); } 
+        } catch (e: any) { setError(e.response?.data?.message || t('failed')); }
         finally { setLoading(false); }
     };
 
@@ -682,7 +706,7 @@ function FaceEnrollmentDialog({ open, onOpenChange, user, onSuccess }: any) {
                     {!image ? <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay/> : <img src={image} className="w-full h-full object-cover"/>}
                 </div>
                 <div className="flex justify-center gap-3 mt-2">
-                    {!image ? <Button onClick={capture} className="bg-orange-600"><Camera className="mr-2 h-4 w-4"/> {t('capture_photo')}</Button> : 
+                    {!image ? <Button onClick={capture} className="bg-orange-600"><Camera className="mr-2 h-4 w-4"/> {t('capture_photo')}</Button> :
                     <><Button onClick={handleSubmit} disabled={loading} className="bg-green-600">{loading ? <Loader2 className="animate-spin"/> : t('submit')}</Button>
                     <Button onClick={() => { setImage(null); startCamera(); }} variant="outline" disabled={loading}><RefreshCw className="mr-2 h-4 w-4"/> {t('retake')}</Button></>}
                     {error && <Button onClick={startCamera} variant="outline">{t('retry')}</Button>}

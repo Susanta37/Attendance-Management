@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Models\EmployeeLocation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\FacadesLog;
 use Inertia\Inertia;
 
 class AdminAttendanceController extends Controller
@@ -165,7 +167,7 @@ private function transformImageUrls($attendances)
 {
     $attendanceId = $request->input('attendance_id');
 
-    \Log::info('Live Location Query', [
+    Log::info('Live Location Query', [
         'user_id' => $userId,
         'attendance_id' => $attendanceId,
     ]);
@@ -177,12 +179,20 @@ private function transformImageUrls($attendances)
     }
 
     $locations = $query
-        ->orderBy('recorded_at', 'asc')
-        ->get([
-            'id', 'lat', 'lng', 'speed', 'accuracy', 'battery', 'recorded_at'
-        ]);
+            ->orderBy('recorded_at', 'asc')
+            ->get([
+                'id', 
+                'lat', 
+                'lng', 
+                'speed', 
+                'accuracy', 
+                'battery', 
+                'recorded_at', 
+                'name', 
+                'time_spent_seconds'
+            ]);
 
-    \Log::info('Live Location Results', [
+    Log::info('Live Location Results', [
         'count' => $locations->count(),
         'first_location' => $locations->first(),
     ]);

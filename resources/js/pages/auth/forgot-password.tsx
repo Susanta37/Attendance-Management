@@ -1,4 +1,3 @@
-// Components
 import { login } from '@/routes';
 import { email } from '@/routes/password';
 import { Form, Head } from '@inertiajs/react';

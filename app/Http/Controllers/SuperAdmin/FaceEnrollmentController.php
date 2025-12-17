@@ -97,75 +97,101 @@ class FaceEnrollmentController extends Controller
     /**
      * Private helper to process face enrollment
      */
- private function processFaceEnrollment(User $user, string $imageBase64, bool $isReEnroll)
-{
-    // 1️⃣ Normalize image
-    if (str_starts_with($imageBase64, 'data:image')) {
-        $imageBase64 = substr($imageBase64, strpos($imageBase64, ',') + 1);
-    }
+private function processFaceEnrollment(User $user, string $imageBase64, bool $isReEnroll)
+    {
+        // 1. Clean the Base64 String
+        if (str_contains($imageBase64, 'base64,')) {
+            $exploded = explode(',', $imageBase64);
+            $cleanBase64 = end($exploded); // Get the part after 'base64,'
+        } else {
+            $cleanBase64 = $imageBase64;
+        }
+        
+        // Fix standard base64 issues
+        $cleanBase64 = str_replace(' ', '+', $cleanBase64);
 
-    $imageBase64 = str_replace(' ', '+', $imageBase64);
-    $imageData = base64_decode($imageBase64);
+        // Decode to binary for file storage
+        $imageData = base64_decode($cleanBase64);
 
-    if ($imageData === false) {
+        if ($imageData === false) {
+            return response()->json(['success' => false, 'message' => 'Invalid image data format'], 422);
+        }
+
+        // 2. Call Python Face Service
+        // We send the 'cleanBase64' directly if the API expects raw base64, 
+        // OR format it as Data URI if API expects that.
+        // Assuming API expects: "data:image/jpeg;base64,....."
+        $apiPayload = 'data:image/jpeg;base64,' . $cleanBase64;
+
+        try {
+            $response = Http::timeout(10)->post('http://kendrapada.nexprodigitalschool.com/encode', [
+                'image' => $apiPayload,
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Face Service Connection Error: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Could not connect to Face Service.'], 500);
+        }
+
+        // 3. Debugging Logs (Check storage/logs/laravel.log)
+        if ($response->failed()) {
+            Log::error('Face API Error', ['status' => $response->status(), 'body' => $response->body()]);
+            return response()->json(['success' => false, 'message' => 'Face Service Error: ' . $response->status()], 500);
+        }
+
+        $responseData = $response->json();
+        
+        // Handle cases where API returns success: false
+        if (isset($responseData['success']) && $responseData['success'] === false) {
+            return response()->json(['success' => false, 'message' => $responseData['message'] ?? 'Face detection failed'], 422);
+        }
+
+        // Extract Embedding
+        $embedding = $responseData['embedding'] ?? $responseData['data']['embedding'] ?? null;
+
+        if (!$embedding || !is_array($embedding)) {
+            Log::error('Missing Embedding in Response', ['response' => $responseData]);
+            return response()->json(['success' => false, 'message' => 'No face detected in the image.'], 422);
+        }
+
+        // 4. Save Image to Disk
+        $fileName = "faces/user-{$user->id}-" . time() . ".jpg";
+        Storage::disk('public')->put($fileName, $imageData);
+
+        // 5. Save to Database
+        // Ensure UserFaceEmbedding model has: protected $casts = ['embedding' => 'array'];
+        UserFaceEmbedding::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'embedding' => $embedding, // Let Laravel cast handle JSON encoding
+                'registered_image' => $fileName,
+            ]
+        );
+
         return response()->json([
+<<<<<<< Updated upstream
+            'success' => true,
+            'message' => $isReEnroll ? 'Face re-enrolled successfully' : 'Face enrolled successfully',
+            'face_data' => [
+                'registered_image' => asset('storage/' . $fileName),
+            ],
+=======
             'success' => false,
             'message' => 'Invalid image data',
         ], 422);
     }
 
     // 2️⃣ Call Python face service
-    $pythonResponse = Http::timeout(30)->post('http://139.59.42.28/encode', [
-        'image' => 'data:image/jpeg;base64,' . base64_encode($imageData),
+    $pythonResponse = Http::timeout(30)->post('http://kendrapada.nexprodigitalschool.com/encode', [
+        'image' => base64_encode($imageData),
     ]);
 
     if ($pythonResponse->failed()) {
         Log::error('Face API failed', [
             'status' => $pythonResponse->status(),
             'body' => $pythonResponse->body(),
+>>>>>>> Stashed changes
         ]);
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Face service unavailable',
-        ], 500);
     }
-
-    $response = $pythonResponse->json();
-
-    // 3️⃣ Extract embedding
-    $embedding = $response['embedding'] ?? $response['data']['embedding'] ?? null;
-
-    if (!$embedding || !is_array($embedding)) {
-        return response()->json([
-            'success' => false,
-            'message' => 'No face detected. Please capture a clear face.',
-        ], 422);
-    }
-
-    // 4️⃣ Save image
-    $path = "faces/user-{$user->id}.jpg";
-    Storage::disk('public')->put($path, $imageData);
-
-    // 5️⃣ Save embedding
-    UserFaceEmbedding::updateOrCreate(
-        ['user_id' => $user->id],
-        [
-            'embedding' => json_encode($embedding),
-            'registered_image' => $path,
-        ]
-    );
-
-    return response()->json([
-        'success' => true,
-        'message' => $isReEnroll
-            ? 'Face re-enrolled successfully'
-            : 'Face enrolled successfully',
-        'face_data' => [
-            'registered_image' => $path,
-        ],
-    ]);
-}
 
 
 }

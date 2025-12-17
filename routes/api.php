@@ -5,20 +5,22 @@ use App\Http\Controllers\Api\AttendanceHistoryController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeAuthController;
 use App\Http\Controllers\Api\FaceApiController;
+use App\Http\Controllers\Api\ForgotPasswordController;
+use App\Http\Controllers\Api\PasswordUpdateController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ResetPasswordController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+
 
 
 Route::post('/employee/login', [EmployeeAuthController::class, 'login'])
     ->name('employee.login');
-
-
-
+Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLink'])
+    ->name('api.password.email');
+Route::post('/reset-password', [ResetPasswordController::class, 'reset'])
+    ->name('api.password.update');
 
 /*
 |--------------------------------------------------------------------------
@@ -32,7 +34,12 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('employee.logout');
 
 
-        Route::get('/check-first-login', [EmployeeAuthController::class, 'checkFirstLogin']);
+    Route::get('/check-first-login', [EmployeeAuthController::class, 'checkFirstLogin']);
+
+
+  Route::put('/user/password', [
+        PasswordUpdateController::class, 'update'
+    ])->name('api.user-password.update');
     /*
     |--------------------------------------------------------------------------
     | Attendance Routes

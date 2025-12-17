@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use Laravel\Fortify\Contracts\UpdatesUserPasswords;
+use App\Actions\Fortify\UpdateUserPassword;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -24,13 +27,18 @@ class FortifyServiceProvider extends ServiceProvider
     {
         $this->app->singleton(
             LoginResponse::class,
-            \App\Http\Responses\LoginResponse::class
+            \App\Http\Responses\LoginResponse::class,
         );
 
          $this->app->singleton(
             TwoFactorLoginResponse::class,
             \App\Http\Responses\LoginResponse::class
         );
+
+         $this->app->singleton(
+        UpdatesUserPasswords::class,
+        UpdateUserPassword::class
+    );
     }
 
     /**
@@ -41,6 +49,34 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureActions();
         $this->configureViews();
         $this->configureRateLimiting();
+
+        // ----------------------------------------------------
+        // START: Conditional Password Reset Link (Web & API)
+        // ----------------------------------------------------
+
+        // This conditional logic remains correct for serving both Inertia (web) and React (API) links.
+        ResetPassword::createUrlUsing(function ($user, string $token) {
+            $request = resolve(Request::class); // Resolve the current request
+
+            // Check if the request is asking for a JSON response (typical for API clients)
+            if ($request->expectsJson() || $request->is('api/*')) {
+                // API/React Flow: Generate external URL for the SPA
+                return env('REACT_SPA_URL'). '/auth/reset-password?token='. $token. '&email='. $user->email; 
+            }
+
+            // Web/Inertia Flow: Use the internal named route 'password.reset'
+            return route('password.reset', [
+                'token' => $token,
+                'email' => $user->email,
+            ]); 
+        });
+
+        // NOTE: The failing line Fortify::updatePasswordResponse(...) has been REMOVED.
+        // The functionality is now handled by the custom PasswordUpdateController you created.
+
+        // ----------------------------------------------------
+        // END: Conditional Password Reset Link
+        // ----------------------------------------------------
     }
 
     /**

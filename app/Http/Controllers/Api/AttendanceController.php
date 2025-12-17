@@ -415,8 +415,43 @@ public function status(Request $request)
         ], 200);
     }
 
+<<<<<<< Updated upstream
     // 3️⃣ Session closed, multiple attendance allowed → CHECKED_OUT
 if ($attendance->check_out_time && $settings->multiple_attendance_allowed) {
+=======
+    // Already checked out → STATUS = completed
+    if ($attendance->check_out_time) {
+
+         // ⏱ Calculate working hours (ONLY here)
+    $checkIn  = Carbon::parse($attendance->check_in_time);
+    $checkOut = Carbon::parse($attendance->check_out_time);
+
+    $totalMinutes = $checkIn->diffInMinutes($checkOut);
+    $workingHours = sprintf(
+        '%02d:%02d',
+        intdiv($totalMinutes, 60),
+        $totalMinutes % 60
+    );
+        return response()->json([
+            'status' => true,
+            'attendance_status' => 'completed',
+            'message' => 'User has completed today’s check-in and check-out.',
+            'data' => [
+                'check_in_time'   => $attendance->check_in_time,
+                'check_out_time'  => $attendance->check_out_time,
+                 'working_hours'   => $workingHours,
+                'check_in_image'  => $attendance->check_in_image
+                    ? asset('storage/' . $attendance->check_in_image)
+                    : null,
+                'check_out_image' => $attendance->check_out_image
+                    ? asset('storage/' . $attendance->check_out_image)
+                    : null,
+            ]
+        ], 200);
+    }
+
+    // Fallback (unlikely)
+>>>>>>> Stashed changes
     return response()->json([
         'status' => true,
         'attendance_status' => 'checked_out',

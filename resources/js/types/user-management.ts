@@ -79,7 +79,7 @@ export interface User {
     department?: Department;
     settings?: UserSetting;
     documents?: UserDocument[];
-    faceEmbedding?: FaceEmbedding;
+    face_embedding?: FaceEmbedding;
 }
 
 export interface UserFormData {
