@@ -15,7 +15,7 @@ class UserFaceEmbedding extends Model
     ];
 
     protected $casts = [
-        'embedding' => 'array', // Automatically decode JSON if embedding stored as JSON
+        'embedding' => 'array',
     ];
 
     // Relationship: Face embedding belongs to a user
