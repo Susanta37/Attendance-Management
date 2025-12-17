@@ -168,11 +168,28 @@ private function processFaceEnrollment(User $user, string $imageBase64, bool $is
         );
 
         return response()->json([
+<<<<<<< Updated upstream
             'success' => true,
             'message' => $isReEnroll ? 'Face re-enrolled successfully' : 'Face enrolled successfully',
             'face_data' => [
                 'registered_image' => asset('storage/' . $fileName),
             ],
+=======
+            'success' => false,
+            'message' => 'Invalid image data',
+        ], 422);
+    }
+
+    // 2️⃣ Call Python face service
+    $pythonResponse = Http::timeout(30)->post('http://kendrapada.nexprodigitalschool.com/encode', [
+        'image' => base64_encode($imageData),
+    ]);
+
+    if ($pythonResponse->failed()) {
+        Log::error('Face API failed', [
+            'status' => $pythonResponse->status(),
+            'body' => $pythonResponse->body(),
+>>>>>>> Stashed changes
         ]);
     }
 

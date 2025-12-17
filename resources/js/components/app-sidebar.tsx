@@ -12,16 +12,17 @@ import {
 } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { 
-    LayoutGrid, 
-    MapPin, 
-    Users, 
-    Building2, 
-    ShieldCheck, 
+import {
+    LayoutGrid,
+    MapPin,
+    Users,
+    Building2,
+    ShieldCheck,
     FileText,
     Clock,
     Calendar,
-    Settings
+    Settings,
+    Activity
 } from 'lucide-react';
 import AppLogo from './app-logo';
 import { SharedData } from '@/types';
@@ -30,7 +31,7 @@ import { useTranslation } from '@/hooks/use-translation'; // Ensure this hook ex
 export function AppSidebar() {
     const { t } = useTranslation(); // Use your translation hook
     const { auth } = usePage<SharedData>().props;
-    const userRole = auth.user?.role?.slug || 'employee'; 
+    const userRole = auth.user?.role?.slug || 'employee';
 
     // --- Define Menus INSIDE component to access 't' ---
 
@@ -69,6 +70,10 @@ export function AppSidebar() {
                 { title: t('departments'), href: '/admin/masterdata' }, // Add keys
                 { title: t('designations'), href: '/admin/designations' },
             ]
+        }, {
+            title: t('live_tracking'), // "Dynamic Reports"
+            href: '/admin/lt',
+            icon: FileText,
         },
     ];
 
