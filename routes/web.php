@@ -83,9 +83,12 @@ Route::middleware(['role:collector,district_admin'])
              Route::get('/reports', [AdminReportsController::class, 'index'])->name('reports');
              Route::get('/reports/{id}/download', [AdminReportsController::class, 'download'])->name('reports.download');
              Route::get('/masterdata', [AdminMasterDataController::class, 'index'])->name('masterdata');
+             //Master Dashboard(Live Tracking)
              Route::get('/lt', [AdminLiveTracking::class, 'index']);
+             Route::post('/notifications/{alert}/read', [AdminLiveTracking::class, 'markNotificationRead'])
+        ->name('notifications.read');
 
-              //Master Dashboard(Live Tracking)
+
 
              // User Management API Routes
              Route::prefix('users')->name('users.')->group(function () {
