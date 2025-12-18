@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Head } from '@inertiajs/react';
+import axios from 'axios';
 import { Bell, LayoutGrid, Maximize2, Minus, Plus } from 'lucide-react';
 import AppLayout from '@/layouts/app-layout';
 import { TrackingMap } from '@/components/Map/TrackingMap';
@@ -54,11 +55,28 @@ export default function GeofenceTracking({
         }
     };
 
-    const handleNotificationAction = (notif: Notification) => {
+  const handleNotificationAction = (notif: Notification) => {
+        // 1. Optimistic UI Update: Mark as read locally immediately
+        setNotifications(currentNotifications =>
+            currentNotifications.map(n =>
+                n.id === notif.id ? { ...n, isRead: true } : n
+            )
+        );
+
+        // 2. Send background request to Laravel
+        // We use the ID to hit the route we defined in Step 1
+        axios.post(`/admin/notifications/${notif.id}/read`)
+            .catch(error => {
+                console.error("Failed to mark notification as read", error);
+            });
+
+        // 3. Perform the map action
         if (notif.relatedUserId) {
             handleUserSelect(notif.relatedUserId);
-            setIsNotifOpen(false);
         }
+
+        // 4. Close the dropdown
+        setIsNotifOpen(false);
     };
 
     return (
