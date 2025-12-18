@@ -106,7 +106,7 @@ private function processFaceEnrollment(User $user, string $imageBase64, bool $is
         } else {
             $cleanBase64 = $imageBase64;
         }
-        
+
         // Fix standard base64 issues
         $cleanBase64 = str_replace(' ', '+', $cleanBase64);
 
@@ -118,7 +118,7 @@ private function processFaceEnrollment(User $user, string $imageBase64, bool $is
         }
 
         // 2. Call Python Face Service
-        // We send the 'cleanBase64' directly if the API expects raw base64, 
+        // We send the 'cleanBase64' directly if the API expects raw base64,
         // OR format it as Data URI if API expects that.
         // Assuming API expects: "data:image/jpeg;base64,....."
         $apiPayload = 'data:image/jpeg;base64,' . $cleanBase64;
@@ -139,7 +139,7 @@ private function processFaceEnrollment(User $user, string $imageBase64, bool $is
         }
 
         $responseData = $response->json();
-        
+
         // Handle cases where API returns success: false
         if (isset($responseData['success']) && $responseData['success'] === false) {
             return response()->json(['success' => false, 'message' => $responseData['message'] ?? 'Face detection failed'], 422);
@@ -168,28 +168,11 @@ private function processFaceEnrollment(User $user, string $imageBase64, bool $is
         );
 
         return response()->json([
-<<<<<<< Updated upstream
             'success' => true,
             'message' => $isReEnroll ? 'Face re-enrolled successfully' : 'Face enrolled successfully',
             'face_data' => [
                 'registered_image' => asset('storage/' . $fileName),
             ],
-=======
-            'success' => false,
-            'message' => 'Invalid image data',
-        ], 422);
-    }
-
-    // 2️⃣ Call Python face service
-    $pythonResponse = Http::timeout(30)->post('http://kendrapada.nexprodigitalschool.com/encode', [
-        'image' => base64_encode($imageData),
-    ]);
-
-    if ($pythonResponse->failed()) {
-        Log::error('Face API failed', [
-            'status' => $pythonResponse->status(),
-            'body' => $pythonResponse->body(),
->>>>>>> Stashed changes
         ]);
     }
 

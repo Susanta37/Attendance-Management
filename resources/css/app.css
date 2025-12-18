@@ -141,3 +141,63 @@
         @apply bg-background text-foreground;
     }
 }
+/* ===============================
+   Leaflet User Map Pin Styles
+   =============================== */
+
+/* Custom Map Pin Styles */
+.user-pin {
+  width: 42px;
+  height: 42px;
+  background: white;
+  border-radius: 50% 50% 50% 0; /* Tear-drop shape */
+  border: 3px solid #cbd5e1; /* Default Gray */
+  transform: rotate(-45deg); /* Rotate to point down */
+  box-shadow: 3px 3px 10px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  top: -20px; /* Adjust visual center */
+  left: -20px;
+}
+
+/* Fix inner content rotation so image/text is upright */
+.user-pin-content {
+  transform: rotate(45deg);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 12px;
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+/* Status Colors */
+/* Status Colors - Ensure these use !important if needed, or just rely on cascade */
+.user-pin.pin-inside {
+  border-color: #22c55e; /* Green */
+}
+
+.user-pin.pin-outside {
+  border-color: #ef4444; /* Red */
+}
+
+.user-pin.pin-inactive {
+  border-color: #94a3b8; /* Gray */
+}
+
+/* ✅ UPDATED SELECTION STYLE */
+.user-pin.pin-selected {
+  transform: scale(1.2) rotate(-45deg);
+
+  /* ✅ ADD THIS INSTEAD: An orange glow ring outside the border */
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.5);
+
+  z-index: 999;
+}
