@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Circle, Polygon, Rectangle, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -53,18 +53,37 @@ interface TrackingMapProps {
 export const TrackingMap: React.FC<TrackingMapProps> = ({
   users, geofences, selectedUserId, mapCenter, mapZoom, onUserClick
 }) => {
+  
+  // Theme Detection State
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const checkTheme = () => setIsDark(document.documentElement.classList.contains('dark'));
+    checkTheme(); // Initial check
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  // Dynamic Tile Layer URL based on theme
+  const tileLayerUrl = isDark 
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" 
+    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+
   return (
     <MapContainer
       center={mapCenter}
       zoom={mapZoom}
-      className="w-full h-full z-0 bg-slate-100"
+      className="w-full h-full z-0 bg-slate-100 dark:bg-zinc-900" // Adaptive BG
       zoomControl={false}
     >
       <MapController center={mapCenter} zoom={mapZoom} />
 
+      {/* Adaptive Tiles */}
       <TileLayer
+        key={isDark ? 'dark' : 'light'} // Force re-render on theme change
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        url={tileLayerUrl}
       />
 
       {/* RENDER GEOFENCES */}
@@ -87,7 +106,6 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
 
         // 3. Render CIRCLE
         if (geo.shape_type === 'circle') {
-             // Ensure lat/lng are numbers
              const lat = Number(geo.lat);
              const lng = Number(geo.lng);
 
@@ -120,9 +138,8 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
              );
         }
 
-        // 5. Render RECTANGLE (FIXED LOGIC)
+        // 5. Render RECTANGLE
         if (geo.shape_type === 'rectangle' && Array.isArray(geo.coordinates) && geo.coordinates.length > 0) {
-             // Calculate bounds dynamically from ALL points to allow 2-point or 4-point definitions
              const lats = geo.coordinates.map((c: any) => Number(c.lat));
              const lngs = geo.coordinates.map((c: any) => Number(c.lng));
 
@@ -165,10 +182,10 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
               click: () => onUserClick(user.id),
             }}
           >
-            <Tooltip direction="top" offset={[0, -45]} opacity={1} className="custom-tooltip">
-              <div className="text-center">
-                <p className="font-bold text-slate-800">{user.name}</p>
-                <p className={`text-xs font-semibold ${user.status === 'inside' ? 'text-green-600' : 'text-red-500'}`}>
+            <Tooltip direction="top" offset={[0, -45]} opacity={1} className="custom-tooltip border-none bg-transparent shadow-none">
+              <div className="text-center bg-white dark:bg-zinc-800 p-2 rounded-lg shadow-lg border border-slate-100 dark:border-zinc-700">
+                <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">{user.name}</p>
+                <p className={`text-[10px] font-semibold tracking-wider mt-0.5 ${user.status === 'inside' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                   {user.status.toUpperCase()}
                 </p>
               </div>
@@ -180,14 +197,16 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
   );
 };
 
-// Helper component
+// Helper component for styled popups
 const GeofencePopup = ({ geo }: { geo: Geofence }) => (
-    <Popup className="rounded-lg shadow-xl">
-        <div className="p-1">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Geofence</span>
-            <h3 className="font-bold text-slate-800">{geo.name}</h3>
-            <p className="text-xs text-slate-600 mt-1">Scope: {geo.scope}</p>
-            <p className="text-xs text-slate-400 capitalize">Type: {geo.shape_type}</p>
+    <Popup className="rounded-lg shadow-xl dark:shadow-none">
+        <div className="p-1 min-w-[150px]">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Geofence</span>
+            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{geo.name}</h3>
+            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-zinc-700">
+                <span className="text-xs text-slate-600 dark:text-slate-400">Scope: <span className="font-medium text-slate-900 dark:text-slate-200">{geo.scope}</span></span>
+            </div>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 capitalize mt-1">Type: {geo.shape_type}</p>
         </div>
     </Popup>
 );

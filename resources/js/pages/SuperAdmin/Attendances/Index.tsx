@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Head, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import GlobalModal from '@/components/GlobalModal';
@@ -28,6 +28,13 @@ import { cn } from "@/lib/utils";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+
+// Define Echo Types
+declare global {
+    interface Window {
+        Echo: any;
+    }
+}
 
 // Fix Leaflet Icons
 // @ts-ignore
@@ -97,6 +104,21 @@ interface Props {
         user_id?: string;
         date?: string;
     };
+}
+
+// --- Helper Functions ---
+
+// Haversine formula to calculate distance between two points in KM
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
 }
 
 // --- Sub Components ---
@@ -185,6 +207,73 @@ export default function AttendanceIndex({ attendances, statistics, roles, users,
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
         return () => observer.disconnect();
     }, []);
+
+    // ---------------------------------------------------------
+    // 1. GLOBAL DASHBOARD LISTENER (Updates KPIs & Table)
+    // ---------------------------------------------------------
+    useEffect(() => {
+        if (window.Echo) {
+            console.log("📡 Listening for Dashboard Updates on: admin.dashboard");
+            
+            // Listen to the 'admin.dashboard' channel
+            window.Echo.private('admin.dashboard')
+                .listen('UserAttendanceDashboardUpdated', (e: any) => {
+                    console.log("🔄 Dashboard Refresh Triggered:", e.message);
+                    
+                    // Reload props (attendances table & statistics KPIs)
+                    // FIX: Use 'as any' to avoid TS error
+                    router.reload({
+                        only: ['attendances', 'statistics'], 
+                        preserveScroll: true,
+                        preserveState: true,
+                    } as any);
+                });
+
+            return () => {
+                window.Echo.leave('admin.dashboard');
+            };
+        }
+    }, []);
+
+    // ---------------------------------------------------------
+    // 2. LIVE LOCATION LISTENER (Updates Map)
+    // ---------------------------------------------------------
+    useEffect(() => {
+        if (showLiveLocation && selectedRecord?.user_id && window.Echo) {
+            
+            // Channel name must match Event: 'attendance.live.{id}'
+            const channelName = `attendance.live.${selectedRecord.user_id}`;
+            console.log(`📡 Connecting to WebSocket: ${channelName}`);
+
+            window.Echo.private(channelName)
+                .listen('EmployeeLocationUpdated', (e: { location: EmployeeLocation }) => {
+                    console.log('📍 Real-time Update:', e.location);
+                    
+                    setLiveLocations((prevLocations) => {
+                        const newLocation = { 
+                            ...e.location, 
+                            lat: Number(e.location.lat), 
+                            lng: Number(e.location.lng) 
+                        };
+
+                        // Calculate incremental distance
+                        if (prevLocations.length > 0) {
+                            const lastPoint = prevLocations[prevLocations.length - 1];
+                            const dist = calculateDistance(lastPoint.lat, lastPoint.lng, newLocation.lat, newLocation.lng);
+                            setTotalDistance(prev => Number((prev + dist).toFixed(2)));
+                        }
+
+                        return [...prevLocations, newLocation];
+                    });
+                });
+
+            return () => {
+                console.log(`🔕 Disconnecting WebSocket: ${channelName}`);
+                window.Echo.leave(channelName);
+            };
+        }
+    }, [showLiveLocation, selectedRecord?.user_id]); 
+
 
     const handleFilterChange = (newFilters: Partial<typeof filters>) => {
         router.get('/admin/attendance', {
@@ -501,7 +590,6 @@ export default function AttendanceIndex({ attendances, statistics, roles, users,
                                                                 </span>
                                                                 {new Date(loc.recorded_at).toLocaleTimeString()}
                                                             </div>
-                                                            {/* Battery */}
                                                             {loc.battery !== undefined && loc.battery !== null && (
                                                                 <div className={cn("flex items-center gap-1 font-medium", loc.battery < 20 ? "text-red-500" : loc.battery < 50 ? "text-yellow-600" : "text-green-600")}>
                                                                     <BatteryMedium size={12} /> {loc.battery}%
@@ -509,14 +597,12 @@ export default function AttendanceIndex({ attendances, statistics, roles, users,
                                                             )}
                                                         </div>
 
-                                                        {/* Address */}
                                                         {loc.name ? (
                                                             <div className="text-gray-600 dark:text-gray-400 line-clamp-1 mb-2 pl-7 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" title={loc.name}>
                                                                 {loc.name}
                                                             </div>
                                                         ) : <div className="text-gray-400 italic text-[10px] mb-2 pl-7">{t('no_address_data')}</div>}
 
-                                                        {/* Stats: Speed, Accuracy, Time Spent */}
                                                         <div className="flex items-center gap-3 pl-7 text-gray-500 flex-wrap">
                                                             {loc.speed !== undefined && loc.speed !== null && (
                                                                 <span className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded" title={t('speed')}>
@@ -553,9 +639,7 @@ export default function AttendanceIndex({ attendances, statistics, roles, users,
                                 const hasAttendanceCoords = !!currentAttendance && currentAttendance.check_in_lat !== null && currentAttendance.check_in_lng !== null;
                                 const mapMode = showLiveLocation && liveLocations.length > 0 ? 'LIVE' : hasAttendanceCoords ? 'ATTENDANCE' : 'EMPTY';
 
-                                if (mapMode === 'EMPTY') {
-                                    return <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2"><MapPin size={32} />{t('no_gps_data')}</div>;
-                                }
+                                if (mapMode === 'EMPTY') return <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2"><MapPin size={32} />{t('no_gps_data')}</div>;
 
                                 const center: [number, number] = mapMode === 'LIVE' 
                                     ? [liveLocations[0].lat, liveLocations[0].lng] 

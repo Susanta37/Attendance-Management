@@ -14,6 +14,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Events\EmployeeLocationUpdated;
+use App\Events\UserAttendanceDashboardUpdated;
 
 class AttendanceController extends Controller
 {
@@ -28,10 +30,10 @@ public function checkIn(Request $request)
     $settings = $user->settings;
     $today = now()->toDateString();
 
-    Log::info('CHECK-IN START', [
-        'user_id' => $user->id,
-        'date' => $today,
-    ]);
+    // Log::info('CHECK-IN START', [
+    //     'user_id' => $user->id,
+    //     'date' => $today,
+    // ]);
 
     $rules = [
         'lat'       => 'required|numeric',
@@ -43,7 +45,7 @@ public function checkIn(Request $request)
         $rules['image'] = 'required|string';
     }
 
-    Log::info('CHECK-IN VALIDATION RULES', $rules);
+    // Log::info('CHECK-IN VALIDATION RULES', $rules);
 
     $request->validate($rules);
 
@@ -66,14 +68,14 @@ public function checkIn(Request $request)
      * 1️⃣ FACE VERIFICATION
      */
     if ($settings->face_verification_enabled) {
-        Log::info('FACE VERIFICATION START', ['user_id' => $user->id]);
+        // Log::info('FACE VERIFICATION START', ['user_id' => $user->id]);
 
         $stored = UserFaceEmbedding::where('user_id', $user->id)->first();
 
         if (!$stored) {
-            Log::error('FACE VERIFICATION FAILED: No face enrolled', [
-                'user_id' => $user->id
-            ]);
+            // Log::error('FACE VERIFICATION FAILED: No face enrolled', [
+            //     'user_id' => $user->id
+            // ]);
 
             return response()->json(['error' => 'No face enrolled'], 400);
         }
@@ -83,10 +85,10 @@ public function checkIn(Request $request)
         ]);
 
         if (!$encoded->successful()) {
-            Log::error('FACE ENCODE API FAILED', [
-                'status' => $encoded->status(),
-                'response' => $encoded->body()
-            ]);
+            // Log::error('FACE ENCODE API FAILED', [
+            //     'status' => $encoded->status(),
+            //     'response' => $encoded->body()
+            // ]);
 
             return response()->json(['error' => 'Face detection failed'], 422);
         }
@@ -97,10 +99,10 @@ public function checkIn(Request $request)
         ]);
 
         if (!$compare->successful() || !($compare->json()['match'] ?? false)) {
-            Log::warning('FACE MISMATCH', [
-                'user_id' => $user->id,
-                'distance' => $compare->json()['distance'] ?? null
-            ]);
+            // Log::warning('FACE MISMATCH', [
+            //     'user_id' => $user->id,
+            //     'distance' => $compare->json()['distance'] ?? null
+            // ]);
 
             return response()->json([
                 'error' => 'Face does not match',
@@ -108,7 +110,7 @@ public function checkIn(Request $request)
             ], 403);
         }
 
-        Log::info('FACE VERIFICATION PASSED', ['user_id' => $user->id]);
+        // Log::info('FACE VERIFICATION PASSED', ['user_id' => $user->id]);
     }
 
     /**
@@ -117,35 +119,35 @@ public function checkIn(Request $request)
     $isAnomaly = false;
 
     if ($settings->gps_spoof_check_enabled) {
-        Log::info('GPS SPOOF CHECK START', [
-            'user_id' => $user->id,
-            'lat' => $request->lat,
-            'lng' => $request->lng
-        ]);
+        // Log::info('GPS SPOOF CHECK START', [
+        //     'user_id' => $user->id,
+        //     'lat' => $request->lat,
+        //     'lng' => $request->lng
+        // ]);
 
         if (SpoofDetectionService::isSpoofed($user, $request->lat, $request->lng)) {
             $isAnomaly = true;
 
-            Log::warning('GPS SPOOF DETECTED', [
-                'user_id' => $user->id
-            ]);
+            // Log::warning('GPS SPOOF DETECTED', [
+            //     'user_id' => $user->id
+            // ]);
 
             return response()->json([
                 'error' => 'Suspicious GPS activity detected'
             ], 403);
         }
 
-        Log::info('GPS SPOOF CHECK PASSED', ['user_id' => $user->id]);
+        // Log::info('GPS SPOOF CHECK PASSED', ['user_id' => $user->id]);
     }
 
     /**
      * 3️⃣ GEOFENCE VALIDATION
      */
-    Log::info('GEOFENCE CHECK START', [
-        'user_id' => $user->id,
-        'lat' => $request->lat,
-        'lng' => $request->lng
-    ]);
+    // Log::info('GEOFENCE CHECK START', [
+    //     'user_id' => $user->id,
+    //     'lat' => $request->lat,
+    //     'lng' => $request->lng
+    // ]);
 
     $geofenceResult = GeofenceService::validateLocation(
         $user,
@@ -153,17 +155,17 @@ public function checkIn(Request $request)
         $request->lng
     );
 
-    Log::info('GEOFENCE RESULT', [
-        'inside' => $geofenceResult['inside'],
-        'distance' => $geofenceResult['distance'],
-        'fence_id' => $geofenceResult['fence']->id ?? null
-    ]);
+    // Log::info('GEOFENCE RESULT', [
+    //     'inside' => $geofenceResult['inside'],
+    //     'distance' => $geofenceResult['distance'],
+    //     'fence_id' => $geofenceResult['fence']->id ?? null
+    // ]);
 
     if (!$geofenceResult['inside'] && !$settings->allow_outside_geofence) {
-        Log::warning('CHECK-IN BLOCKED: Outside geofence', [
-            'user_id' => $user->id,
-            'distance' => $geofenceResult['distance']
-        ]);
+        // Log::warning('CHECK-IN BLOCKED: Outside geofence', [
+        //     'user_id' => $user->id,
+        //     'distance' => $geofenceResult['distance']
+        // ]);
 
         return response()->json([
             'error' => 'You are outside the allowed geofence area',
@@ -184,9 +186,9 @@ public function checkIn(Request $request)
 
         $imagePath = "attendance/$imageName";
 
-        Log::info('CHECK-IN IMAGE SAVED', [
-            'path' => $imagePath
-        ]);
+        // Log::info('CHECK-IN IMAGE SAVED', [
+        //     'path' => $imagePath
+        // ]);
     }
 
     /**
@@ -207,21 +209,21 @@ public function checkIn(Request $request)
     ]);
 
     /**
- * 6️⃣ Create Live Location (Initial Check-in Point)
- */
-EmployeeLocation::create([
-    'user_id'        => $user->id,
-    'attendance_id'  => $attendance->id,
-    'lat'            => $request->lat,
-    'lng'            => $request->lng,
-    'recorded_at'    => now(),
-]);
-
-    Log::info('CHECK-IN SUCCESS', [
-        'attendance_id' => $attendance->id,
-        'user_id' => $user->id
+     * 6️⃣ Create Live Location (Initial Check-in Point)
+     */
+    EmployeeLocation::create([
+        'user_id'        => $user->id,
+        'attendance_id'  => $attendance->id,
+        'lat'            => $request->lat,
+        'lng'            => $request->lng,
+        'recorded_at'    => now(),
     ]);
 
+    // Log::info('CHECK-IN SUCCESS', [
+    //     'attendance_id' => $attendance->id,
+    //     'user_id' => $user->id
+    // ]);
+    broadcast(new UserAttendanceDashboardUpdated('New Check-in', $user->id));
     return response()->json([
         'status'  => true,
         'message' => 'Check-in successful',
@@ -320,19 +322,20 @@ EmployeeLocation::create([
     ]);
 
     /**
- *  Create Live Location (Checkout Point)
- */
-$timeSpentSeconds = Carbon::parse($attendance->check_in_time)
-    ->diffInSeconds(now());
+     *  Create Live Location (Checkout Point)
+     */
+    $timeSpentSeconds = Carbon::parse($attendance->check_in_time)
+        ->diffInSeconds(now());
 
-EmployeeLocation::create([
-    'user_id'              => $user->id,
-    'attendance_id'        => $attendance->id,
-    'lat'                  => $request->lat,
-    'lng'                  => $request->lng,
-    'recorded_at'          => now(),
-    'time_spent_seconds'   => $timeSpentSeconds,
-]);
+    EmployeeLocation::create([
+        'user_id'              => $user->id,
+        'attendance_id'        => $attendance->id,
+        'lat'                  => $request->lat,
+        'lng'                  => $request->lng,
+        'recorded_at'          => now(),
+        'time_spent_seconds'   => $timeSpentSeconds,
+    ]);
+    broadcast(new UserAttendanceDashboardUpdated('New Check-out', $user->id));
 
     return response()->json([
         'status'  => true,
@@ -344,7 +347,7 @@ EmployeeLocation::create([
 
 
 
-    public function liveLocation(Request $request)
+public function liveLocation(Request $request)
 {
     $request->validate([
         'lat'      => 'required|numeric',
@@ -394,8 +397,9 @@ EmployeeLocation::create([
         'speed'         => $request->speed,
         'accuracy'      => $request->accuracy,
         'battery'       => $request->battery,
-        'recorded_at'   => now(),
+        'recorded_at'   => $request->recorded_at ?? now(),
     ]);
+    broadcast(new EmployeeLocationUpdated($location));
 
     return response()->json([
         'status'               => true,
@@ -408,63 +412,63 @@ EmployeeLocation::create([
 
 public function status(Request $request)
 {
-    $user = $request->user();
-    $settings = $user->settings;
-    $today = now()->toDateString();
+        $user = $request->user();
+        $settings = $user->settings;
+        $today = now()->toDateString();
 
-    $attendance = Attendance::where('user_id', $user->id)
-        ->where('date', $today)
-        ->orderBy('created_at', 'desc')
-        ->first();
+        $attendance = Attendance::where('user_id', $user->id)
+            ->where('date', $today)
+            ->orderBy('created_at', 'desc')
+            ->first();
 
-    // 1️⃣ No attendance today
-    if (! $attendance) {
+        // 1️⃣ No attendance today
+        if (! $attendance) {
+            return response()->json([
+                'status' => true,
+                'attendance_status' => 'not_checked_in',
+                'message' => 'User has not checked in today.',
+                'data' => null
+            ], 200);
+        }
+
+        // 2️⃣ Active session (checked in, not checked out)
+        if ($attendance->check_in_time && ! $attendance->check_out_time) {
+            return response()->json([
+                'status' => true,
+                'attendance_status' => 'checked_in',
+                'message' => 'User is currently checked in.',
+                'data' => [
+                    'check_in_time' => $attendance->check_in_time,
+                    'lat' => $attendance->check_in_lat,
+                    'lng' => $attendance->check_in_lng,
+                ]
+            ], 200);
+        }
+
+        // 3️⃣ Session closed, multiple attendance allowed → CHECKED_OUT
+    if ($attendance->check_out_time && $settings->multiple_attendance_allowed) {
         return response()->json([
             'status' => true,
-            'attendance_status' => 'not_checked_in',
-            'message' => 'User has not checked in today.',
-            'data' => null
-        ], 200);
-    }
-
-    // 2️⃣ Active session (checked in, not checked out)
-    if ($attendance->check_in_time && ! $attendance->check_out_time) {
-        return response()->json([
-            'status' => true,
-            'attendance_status' => 'checked_in',
-            'message' => 'User is currently checked in.',
+            'attendance_status' => 'checked_out',
+            'message' => 'Multiple attendance allowed. User can check in again.',
             'data' => [
-                'check_in_time' => $attendance->check_in_time,
-                'lat' => $attendance->check_in_lat,
-                'lng' => $attendance->check_in_lng,
+                'check_in_time'      => $attendance->check_in_time,   // ✅ added
+                'check_out_time'=> $attendance->check_out_time,
             ]
         ], 200);
     }
 
-    // 3️⃣ Session closed, multiple attendance allowed → CHECKED_OUT
-if ($attendance->check_out_time && $settings->multiple_attendance_allowed) {
-    return response()->json([
-        'status' => true,
-        'attendance_status' => 'checked_out',
-        'message' => 'Multiple attendance allowed. User can check in again.',
-        'data' => [
-            'check_in_time'      => $attendance->check_in_time,   // ✅ added
-            'check_out_time'=> $attendance->check_out_time,
-        ]
-    ], 200);
-}
 
-
-    // 4️⃣ Session closed, multiple attendance NOT allowed → COMPLETED
-    return response()->json([
-        'status' => true,
-        'attendance_status' => 'completed',
-        'message' => 'User has completed today’s attendance.',
-        'data' => [
-            'check_in_time'  => $attendance->check_in_time,
-            'check_out_time' => $attendance->check_out_time,
-        ]
-    ], 200);
+        // 4️⃣ Session closed, multiple attendance NOT allowed → COMPLETED
+        return response()->json([
+            'status' => true,
+            'attendance_status' => 'completed',
+            'message' => 'User has completed today’s attendance.',
+            'data' => [
+                'check_in_time'  => $attendance->check_in_time,
+                'check_out_time' => $attendance->check_out_time,
+            ]
+        ], 200);
 }
 
 

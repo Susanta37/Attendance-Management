@@ -324,5 +324,21 @@
     "view_json": "View JSON",
     "showing": "Showing",
     "of": "of",
-    "entries": "entries"
+    "entries": "entries",
+
+    "live_tracking_dashboard": "Live Tracking Dashboard",
+    "kendrapada_region": "Kendrapada Region",
+    "notifications": "Notifications",
+    "no_new_alerts": "No new alerts",
+    "view_on_map": "View on Map",
+
+    "field_staff": "Field Staff",
+  "monitor_desc": "Monitor live locations and geofence adherence.",
+  "search_placeholder_id": "Search name or ID...",
+  "no_users_found": "No users found.",
+  "show_all_users": "Show All Users",
+  "in_zone": "In Zone",
+  "out_of_zone": "Out of Zone",
+  "total_dist": "Total Distance",
+  "last_updated": "Last Updated"
 }
